@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "796639707849",
+    "project_id": "food-desk",
+    "storage_bucket": "food-desk.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:796639707849:android:22a68def5915b8bef68318",
+        "android_client_info": {
+          "package_name": "com.mit.food_desk"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBfBDQ6b9q--bYSmJpVg0XkFqlTBw2xpcI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

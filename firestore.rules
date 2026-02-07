@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // One-time bootstrap: allow init script to create placeholder docs (no auth required).
+    // Safe to leave in place; only these specific document IDs are writable without auth.
+    match /users/_init { allow read, write: if true; }
+    match /registration_requests/_init { allow read, write: if true; }
+    match /products/1 { allow read, write: if true; }
+    match /orders/_init { allow read, write: if true; }
+
+    // Helper: true if the current user has Admin role in users collection
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin'
+            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+
+    // Registration requests (approval workflow)
+    // - Admins: read/write all (list pending, approve/reject)
+    // - Users: read their own doc (login-time status check) and create their own (on register)
+    match /registration_requests/{requestId} {
+      allow read: if request.auth != null
+        && (requestId == request.auth.uid || isAdmin());
+      allow create: if request.auth != null
+        && requestId == request.auth.uid;
+      allow update, delete: if request.auth != null && isAdmin();
+    }
+
+    // Users: own profile or admin
+    match /users/{userId} {
+      allow read, write: if request.auth != null
+        && (request.auth.uid == userId || isAdmin());
+    }
+    // Products: any authenticated user can read; write for authenticated (vendor owns their products)
+    match /products/{id} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if request.auth != null;
+    }
+    // Orders: any authenticated user can read/write (app filters by customerId/vendorId)
+    match /orders/{id} {
+      allow read, write: if request.auth != null;
+    }
+    // Vendor config: Order Before times per meal type. Vendor writes own doc; anyone signed in can read (for countdown).
+    match /vendor_config/{vendorId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == vendorId;
+    }
+    // Pool: meals moved by users (after deadline) or released; anyone signed in can read/write (add to pool, allocate).
+    match /pool/{poolId} {
+      allow read, write: if request.auth != null;
+    }
+    // App settings: all authenticated can read; only admins can write (meal price visibility, meal limits).
+    match /app_settings/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin();
+    }
+    // Audit log: only admins can read/write (deactivate/activate actions).
+    match /audit_log/{logId} {
+      allow read, write: if request.auth != null && isAdmin();
+    }
+  }
+}
