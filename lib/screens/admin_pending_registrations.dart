@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class AdminPendingRegistrations extends StatelessWidget {
   const AdminPendingRegistrations({Key? key}) : super(key: key);
 
-  static const List<String> _roles = ['Customer', 'Vendor', 'Admin'];
+  static const List<String> _roles = ['Customer', 'Supplier', 'Admin'];
 
   @override
   Widget build(BuildContext context) {

@@ -3,10 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/date_time_utils.dart';
 import '../utils/order_utils.dart';
-// AppData removed: read vendor id from FirebaseAuth at runtime
 
-class VendorOrderList extends StatelessWidget {
-  const VendorOrderList({Key? key}) : super(key: key);
+class SupplierOrderList extends StatelessWidget {
+  const SupplierOrderList({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +64,6 @@ class VendorOrderList extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Order Header
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -106,8 +104,6 @@ class VendorOrderList extends StatelessWidget {
                           ],
                         ),
                         const Divider(height: 24),
-
-                        // Customer Info
                         Row(
                           children: [
                             CircleAvatar(
@@ -138,8 +134,6 @@ class VendorOrderList extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 16),
-
-                        // Product Info
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -176,8 +170,6 @@ class VendorOrderList extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 16),
-
-                        // Delivery date & Meal type
                         Row(
                           children: [
                             Icon(Icons.event, size: 16, color: Colors.grey.shade600),
@@ -216,7 +208,6 @@ class VendorOrderList extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        // Total and Cancel
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [

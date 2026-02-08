@@ -194,7 +194,7 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
                     const SizedBox(width: 12),
                     const Expanded(
                       child: Text(
-                        'This is a Late Meal Reservation request and will be sent for vendor approval.',
+                        'This is a Late Meal Reservation request and will be sent for supplier approval.',
                         style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -202,7 +202,7 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text('Notes for vendor (optional)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+              const Text('Notes for supplier (optional)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
               const SizedBox(height: 4),
               TextField(
                 controller: controller,
@@ -337,7 +337,7 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
     }
   }
 
-  /// Places a late order (current day, past deadline). No stock decrement; status LateOrderPending for vendor approval.
+  /// Places a late order (current day, past deadline). No stock decrement; status LateOrderPending for supplier approval.
   Future<void> _placeLateOrder(
     Map<String, dynamic> product,
     int quantity,
@@ -413,7 +413,7 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Late reservation submitted. Vendor will review and notify you.'),
+          content: Text('Late reservation submitted. Supplier will review and notify you.'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -472,7 +472,7 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
     );
   }
 
-  /// Builds "Recommended Order Before" countdown from vendor config for selected meal type.
+  /// Builds "Recommended Order Before" countdown from supplier config for selected meal type.
   Widget _buildOrderBeforeCountdown() {
     final product = _selectedProduct ?? (_productsForSelectedMealType.isNotEmpty ? _productsForSelectedMealType.first : null);
     final vendorId = product?['vendorId'] as String?;

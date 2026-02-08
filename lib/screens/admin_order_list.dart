@@ -112,13 +112,13 @@ class AdminOrderList extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
 
-                        // Vendor Info
+                        // Supplier Info
                         Row(
                           children: [
                             Icon(Icons.store, size: 18, color: Colors.grey.shade600),
                             const SizedBox(width: 8),
                             Text(
-                              'Vendor: ${order['vendorName'] ?? 'N/A'}',
+                              'Supplier: ${order['vendorName'] ?? 'N/A'}',
                               style: const TextStyle(fontSize: 14),
                             ),
                           ],

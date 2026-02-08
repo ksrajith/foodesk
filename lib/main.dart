@@ -9,14 +9,15 @@ import 'screens/admin_approved_registrations_screen.dart';
 import 'screens/admin_settings_screen.dart';
 import 'screens/admin_product_list.dart';
 import 'screens/admin_order_list.dart';
-import 'screens/vendor_dashboard.dart';
-import 'screens/vendor_product_list.dart';
-import 'screens/vendor_add_edit_meal_screen.dart';
-import 'screens/vendor_order_before_screen.dart';
-import 'screens/vendor_order_list.dart';
-import 'screens/vendor_order_summary.dart';
-import 'screens/vendor_late_orders_screen.dart';
-import 'screens/customer_home.dart';
+import 'screens/supplier_dashboard.dart';
+import 'screens/supplier_product_list.dart';
+import 'screens/supplier_add_edit_meal_screen.dart';
+import 'screens/supplier_order_before_screen.dart';
+import 'screens/supplier_order_list.dart';
+import 'screens/supplier_order_summary.dart';
+import 'screens/supplier_late_orders_screen.dart';
+import 'screens/customer_dashboard.dart';
+import 'screens/customer_order_history_screen.dart';
 import 'screens/pool_screen.dart';
 
 Future<void> main() async {
@@ -84,14 +85,15 @@ class MyApp extends StatelessWidget {
         '/admin-settings': (context) => const AdminSettingsScreen(),
         '/admin-products': (context) => const AdminProductList(),
         '/admin-orders': (context) => const AdminOrderList(),
-        '/vendor-dashboard': (context) => const VendorDashboard(),
-        '/vendor-products': (context) => const VendorProductList(),
-        '/vendor-add-edit-meal': (context) => const VendorAddEditMealScreen(),
-        '/vendor-order-before': (context) => const VendorOrderBeforeScreen(),
-        '/vendor-orders': (context) => const VendorOrderList(),
-        '/vendor-late-orders': (context) => const VendorLateOrdersScreen(),
-        '/vendor-order-summary': (context) => const VendorOrderSummary(),
-        '/customer-home': (context) => const CustomerHome(),
+        '/supplier-dashboard': (context) => const SupplierDashboard(),
+        '/supplier-products': (context) => const SupplierProductList(),
+        '/supplier-add-edit-meal': (context) => const SupplierAddEditMealScreen(),
+        '/supplier-order-before': (context) => const SupplierOrderBeforeScreen(),
+        '/supplier-orders': (context) => const SupplierOrderList(),
+        '/supplier-late-orders': (context) => const SupplierLateOrdersScreen(),
+        '/supplier-order-summary': (context) => const SupplierOrderSummary(),
+        '/customer-home': (context) => const CustomerDashboard(),
+        '/customer-order-history': (context) => const CustomerOrderHistoryScreen(),
         '/pool': (context) => const PoolScreen(),
       },
     );

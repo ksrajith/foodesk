@@ -3,8 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 // AppData removed: use FirebaseAuth/Firestore for current user data
 
-class VendorDashboard extends StatelessWidget {
-  const VendorDashboard({Key? key}) : super(key: key);
+class SupplierDashboard extends StatelessWidget {
+  const SupplierDashboard({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -12,7 +12,7 @@ class VendorDashboard extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Vendor Dashboard'),
+        title: const Text('Supplier Dashboard'),
         backgroundColor: Colors.teal.shade600,
         foregroundColor: Colors.white,
         actions: [
@@ -20,7 +20,6 @@ class VendorDashboard extends StatelessWidget {
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await FirebaseAuth.instance.signOut();
-              // AppData.logout();
               // ignore: use_build_context_synchronously
               Navigator.pushReplacementNamed(context, '/');
             },
@@ -32,7 +31,6 @@ class VendorDashboard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Welcome Card
             Card(
               elevation: 4,
               child: Padding(
@@ -49,12 +47,12 @@ class VendorDashboard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Welcome, ${firebaseUser?.displayName ?? 'Vendor'}!',
+                          'Welcome, ${firebaseUser?.displayName ?? 'Supplier'}!',
                           style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Role: Vendor',
+                          'Role: Supplier',
                           style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                         ),
                       ],
@@ -64,8 +62,6 @@ class VendorDashboard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-
-            // Statistics Cards
             Row(
               children: [
                 Expanded(
@@ -156,8 +152,6 @@ class VendorDashboard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 32),
-
-            // Navigation Options
             const Text(
               'Quick Access',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -172,7 +166,7 @@ class VendorDashboard extends StatelessWidget {
                     'View and manage your products',
                     Icons.inventory_2,
                     Colors.teal,
-                    '/vendor-products',
+                    '/supplier-products',
                   ),
                   const SizedBox(height: 12),
                   _buildMenuTile(
@@ -181,7 +175,7 @@ class VendorDashboard extends StatelessWidget {
                     'Set cut-off time for each meal type (24h)',
                     Icons.schedule,
                     Colors.orange,
-                    '/vendor-order-before',
+                    '/supplier-order-before',
                   ),
                   const SizedBox(height: 12),
                   _buildMenuTile(
@@ -190,7 +184,7 @@ class VendorDashboard extends StatelessWidget {
                     'View orders for your products',
                     Icons.shopping_bag,
                     Colors.green,
-                    '/vendor-orders',
+                    '/supplier-orders',
                   ),
                   const SizedBox(height: 12),
                   _buildLateOrdersTile(context, firebaseUser?.uid ?? ''),
@@ -201,7 +195,7 @@ class VendorDashboard extends StatelessWidget {
                     'Product-wise order analytics',
                     Icons.analytics,
                     Colors.blue,
-                    '/vendor-order-summary',
+                    '/supplier-order-summary',
                   ),
                 ],
               ),
@@ -303,12 +297,10 @@ class VendorDashboard extends StatelessWidget {
                     ],
                   )
                 : const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () => Navigator.pushNamed(context, '/vendor-late-orders'),
+            onTap: () => Navigator.pushNamed(context, '/supplier-late-orders'),
           ),
         );
       },
     );
   }
-
-  // Stock and revenue are computed from Firestore via StreamBuilders above.
 }

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'vendor_add_edit_meal_screen.dart';
+import 'supplier_add_edit_meal_screen.dart';
 
-class VendorProductList extends StatelessWidget {
-  const VendorProductList({Key? key}) : super(key: key);
+class SupplierProductList extends StatelessWidget {
+  const SupplierProductList({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +20,7 @@ class VendorProductList extends StatelessWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final added = await Navigator.of(context).push<bool>(
-            MaterialPageRoute(builder: (_) => const VendorAddEditMealScreen()),
+            MaterialPageRoute(builder: (_) => const SupplierAddEditMealScreen()),
           );
           if (added == true && context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -82,12 +82,12 @@ class VendorProductList extends StatelessWidget {
               ),
             );
           }
-          final vendorProducts = docs.map((d) => {'id': d.id, ...d.data()}).toList();
+          final supplierProducts = docs.map((d) => {'id': d.id, ...d.data()}).toList();
           return ListView.builder(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-            itemCount: vendorProducts.length,
+            itemCount: supplierProducts.length,
             itemBuilder: (context, index) {
-              final product = vendorProducts[index];
+              final product = supplierProducts[index];
               return Card(
                   elevation: 3,
                   margin: const EdgeInsets.only(bottom: 16),
@@ -99,7 +99,7 @@ class VendorProductList extends StatelessWidget {
                     onTap: () async {
                       final updated = await Navigator.of(context).push<bool>(
                         MaterialPageRoute(
-                          builder: (_) => VendorAddEditMealScreen(product: product),
+                          builder: (_) => SupplierAddEditMealScreen(product: product),
                         ),
                       );
                       if (updated == true && context.mounted) {
@@ -113,7 +113,6 @@ class VendorProductList extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Product Image/Icon
                         Container(
                           width: 90,
                           height: 90,
@@ -150,13 +149,10 @@ class VendorProductList extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 16),
-
-                        // Product Details
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Product Name
                               Text(
                                 product['name'] ?? 'Unknown Product',
                                 style: const TextStyle(
@@ -166,8 +162,6 @@ class VendorProductList extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(height: 6),
-
-                              // Product Description
                               Text(
                                 product['description'] ?? 'No description available',
                                 style: TextStyle(
@@ -194,8 +188,6 @@ class VendorProductList extends StatelessWidget {
                                 ),
                               ],
                               const SizedBox(height: 12),
-
-                              // Product ID Badge
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 10,
@@ -229,12 +221,9 @@ class VendorProductList extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(height: 12),
-
-                              // Price and Stock Row
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  // Price
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
@@ -257,8 +246,6 @@ class VendorProductList extends StatelessWidget {
                                       ),
                                     ],
                                   ),
-
-                                  // Stock Status
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 14,

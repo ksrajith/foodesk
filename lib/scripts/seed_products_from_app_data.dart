@@ -6,12 +6,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 // Adds the 7 food products from app_data.dart into Firestore (products collection).
-// You must sign in as a Vendor so Firestore rules allow the write.
+// You must sign in as a Supplier so Firestore rules allow the write.
 //
 // Run on Android (emulator or device):
-//   flutter run -d emulator-5554 -t lib/scripts/seed_products_from_app_data.dart --dart-define=SEED_EMAIL=yourvendor@email.com --dart-define=SEED_PASSWORD=yourpassword
+//   flutter run -d emulator-5554 -t lib/scripts/seed_products_from_app_data.dart --dart-define=SEED_EMAIL=yoursupplier@email.com --dart-define=SEED_PASSWORD=yourpassword
 //
-// Replace with a real Vendor account that exists in your Firebase Auth + users collection.
+// Replace with a real Supplier account that exists in your Firebase Auth + users collection.
 
 const seedEmail = String.fromEnvironment('SEED_EMAIL');
 const seedPassword = String.fromEnvironment('SEED_PASSWORD');
@@ -133,8 +133,8 @@ Future<void> main() async {
   await _initFirebase();
 
   if (seedEmail.isEmpty || seedPassword.isEmpty) {
-    print('[SEED_PRODUCTS] Set SEED_EMAIL and SEED_PASSWORD (Vendor account).');
-    print('Example: flutter run -d emulator-5554 -t lib/scripts/seed_products_from_app_data.dart --dart-define=SEED_EMAIL=vendor@example.com --dart-define=SEED_PASSWORD=yourpassword');
+    print('[SEED_PRODUCTS] Set SEED_EMAIL and SEED_PASSWORD (Supplier account).');
+    print('Example: flutter run -d emulator-5554 -t lib/scripts/seed_products_from_app_data.dart --dart-define=SEED_EMAIL=supplier@example.com --dart-define=SEED_PASSWORD=yourpassword');
     exit(1);
   }
 
@@ -150,7 +150,7 @@ Future<void> main() async {
   }
 
   final uid = FirebaseAuth.instance.currentUser!.uid;
-  final vendorName = FirebaseAuth.instance.currentUser!.email ?? 'Vendor';
+  final vendorName = FirebaseAuth.instance.currentUser!.email ?? 'Supplier';
   final prodCol = FirebaseFirestore.instance.collection('products');
 
   for (final p in _productsFromAppData) {

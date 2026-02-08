@@ -3,9 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/date_time_utils.dart';
 
-/// Lists pending late orders for the current vendor. Vendors can Approve or Reject.
-class VendorLateOrdersScreen extends StatelessWidget {
-  const VendorLateOrdersScreen({Key? key}) : super(key: key);
+/// Lists pending late orders for the current supplier. Suppliers can Approve or Reject.
+class SupplierLateOrdersScreen extends StatelessWidget {
+  const SupplierLateOrdersScreen({Key? key}) : super(key: key);
 
   static bool _isToday(Map<String, dynamic> order) {
     final raw = order['deliveryDate'] ?? order['orderDate'];

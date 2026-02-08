@@ -472,12 +472,12 @@ class AdminDashboard extends StatelessWidget {
       builder: (ctx) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance.collection('users').snapshots(),
         builder: (context, snapshot) {
-          int customers = 0, vendors = 0, admins = 0;
+          int customers = 0, suppliers = 0, admins = 0;
           if (snapshot.hasData) {
             for (final d in snapshot.data!.docs) {
               final role = ((d.data()['role'] as String?) ?? 'Customer').toLowerCase();
               if (role == 'admin') admins++;
-              else if (role == 'vendor') vendors++;
+              else if (role == 'vendor' || role == 'supplier') suppliers++;
               else customers++;
             }
           }
@@ -488,7 +488,7 @@ class AdminDashboard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _userSummaryRow('Active Customer accounts', customers, Icons.person),
-                _userSummaryRow('Active Vendor accounts', vendors, Icons.store),
+                _userSummaryRow('Active Supplier accounts', suppliers, Icons.store),
                 _userSummaryRow('Active Admin accounts', admins, Icons.admin_panel_settings),
               ],
             ),
@@ -527,12 +527,12 @@ class AdminDashboard extends StatelessWidget {
             .where('status', isEqualTo: 'pending')
             .snapshots(),
         builder: (context, snapshot) {
-          int customers = 0, vendors = 0, admins = 0;
+          int customers = 0, suppliers = 0, admins = 0;
           if (snapshot.hasData) {
             for (final d in snapshot.data!.docs) {
               final role = (d.data()['requestedRole'] as String?) ?? 'Customer';
               if (role == 'Admin') admins++;
-              else if (role == 'Vendor') vendors++;
+              else if (role == 'Vendor' || role == 'Supplier') suppliers++;
               else customers++;
             }
           }
@@ -554,9 +554,9 @@ class AdminDashboard extends StatelessWidget {
                 InkWell(
                   onTap: () {
                     Navigator.pop(ctx);
-                    _showPendingListByRole(context, 'Vendor');
+                    _showPendingListByRole(context, 'Supplier');
                   },
-                  child: _userSummaryRow('Vendors waiting for approval', vendors, Icons.store),
+                  child: _userSummaryRow('Suppliers waiting for approval', suppliers, Icons.store),
                 ),
                 InkWell(
                   onTap: () {
@@ -582,8 +582,8 @@ class AdminDashboard extends StatelessWidget {
   static void _showPendingListByRole(BuildContext context, String role) {
     final title = role == 'Customer'
         ? 'Customers waiting for approval'
-        : role == 'Vendor'
-            ? 'Vendors waiting for approval'
+        : role == 'Vendor' || role == 'Supplier'
+            ? 'Suppliers waiting for approval'
             : 'Admins waiting for approval';
     showDialog(
       context: context,
@@ -599,12 +599,16 @@ class AdminDashboard extends StatelessWidget {
             builder: (context, snapshot) {
               if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
               final docs = snapshot.data!.docs
-                  .where((d) => ((d.data()['requestedRole'] as String?) ?? 'Customer') == role)
+                  .where((d) {
+                    final r = (d.data()['requestedRole'] as String?) ?? 'Customer';
+                    if (role == 'Supplier') return r == 'Vendor' || r == 'Supplier';
+                    return r == role;
+                  })
                   .toList();
               if (docs.isEmpty) {
                 return Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text('No pending $role requests.'),
+                  child: Text('No pending ${role == 'Supplier' ? 'Supplier' : role} requests.'),
                 );
               }
               return ConstrainedBox(

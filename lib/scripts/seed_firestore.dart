@@ -9,13 +9,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 // Seed Firestore with demo data (products, optional orders) without adding UI screens.
 // Run with:
 // flutter run -d emulator-5554 -t lib/scripts/seed_firestore.dart 
-//--dart-define=SEED_EMAIL=vendor@demo.com 
+//--dart-define=SEED_EMAIL=supplier@demo.com 
 //--dart-define=SEED_PASSWORD=demo123 
 //--dart-define=SEED_ORDERS=false
 //
 // Notes:
-// - Provide credentials for a Vendor per security rules.
-// - The script creates/updates users/{uid} with role 'Vendor', then writes products with vendorId = uid.
+// - Provide credentials for a Supplier per security rules.
+// - The script creates/updates users/{uid} with role 'Supplier', then writes products with vendorId = uid.
 // - Set SEED_ORDERS=true to also create a sample order for the signed-in user (acts as customer).
 
 const seedEmail = String.fromEnvironment('SEED_EMAIL');
@@ -90,16 +90,16 @@ Future<void> main() async {
   );
   final uid = FirebaseAuth.instance.currentUser!.uid;
 
-  // Ensure users/{uid} has a Vendor role so rules allow vendor-managed products
+  // Ensure users/{uid} has a Supplier role so rules allow supplier-managed products
   final currentEmail = FirebaseAuth.instance.currentUser!.email;
   await FirebaseFirestore.instance.collection('users').doc(uid).set({
-    'name': currentEmail ?? 'Vendor',
-    'role': 'Vendor',
+    'name': currentEmail ?? 'Supplier',
+    'role': 'Supplier',
     'email': currentEmail,
     'id': uid,
   }, SetOptions(merge: true));
   // ignore: avoid_print
-  print('[SEED] Ensured users/$uid has role=Vendor');
+  print('[SEED] Ensured users/$uid has role=Supplier');
 
   // Seed products
   // Inline demo product list (previously stored in AppData.products)
@@ -185,8 +185,8 @@ Future<void> main() async {
       'price': p['price'],
       // Write vendorId as the signed-in vendor's UID to satisfy security rules
       'vendorId': uid,
-      // Use the vendor's email (or keep demo name if present)
-      'vendorName': p['vendorName'] ?? (currentEmail ?? 'Vendor'),
+      // Use the supplier's email (or keep demo name if present)
+      'vendorName': p['vendorName'] ?? (currentEmail ?? 'Supplier'),
       'stock': p['stock'],
       'image': p['image'],
     };

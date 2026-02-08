@@ -44,7 +44,7 @@ class AdminProductList extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Products will appear here once vendors add them',
+                    'Products will appear here once suppliers add them',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey.shade500,
@@ -138,7 +138,7 @@ class AdminProductList extends StatelessWidget {
                               ),
                               const SizedBox(height: 12),
 
-                              // Vendor Info
+                              // Supplier Info
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 10,
@@ -161,7 +161,7 @@ class AdminProductList extends StatelessWidget {
                                     ),
                                     const SizedBox(width: 6),
                                     Text(
-                                      'Vendor: ${product['vendorName'] ?? 'Unknown'}',
+                                      'Supplier: ${product['vendorName'] ?? 'Unknown'}',
                                       style: TextStyle(
                                         fontSize: 13,
                                         color: Colors.teal.shade700,

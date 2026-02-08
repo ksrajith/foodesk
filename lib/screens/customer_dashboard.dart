@@ -8,25 +8,25 @@ import 'place_meal_screen.dart';
 import 'pool_screen.dart';
 // AppData removed: use FirebaseAuth/Firestore for user data
 
-class CustomerHome extends StatefulWidget {
-  const CustomerHome({Key? key}) : super(key: key);
+class CustomerDashboard extends StatefulWidget {
+  const CustomerDashboard({Key? key}) : super(key: key);
 
   @override
-  State<CustomerHome> createState() => _CustomerHomeState();
+  State<CustomerDashboard> createState() => _CustomerDashboardState();
 }
 
-class _CustomerHomeState extends State<CustomerHome> {
+class _CustomerDashboardState extends State<CustomerDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Orders'),
+        title: const Text('Dashboard'),
         backgroundColor: Colors.teal.shade600,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.history),
-            onPressed: () => _showMyOrders(context),
+            onPressed: () => Navigator.pushNamed(context, '/customer-order-history'),
           ),
           IconButton(
             icon: const Icon(Icons.logout),
@@ -84,7 +84,7 @@ class _CustomerHomeState extends State<CustomerHome> {
               children: [
                 Expanded(
                   child: InkWell(
-                    onTap: () => _showMyOrders(context),
+                    onTap: () => Navigator.pushNamed(context, '/customer-order-history'),
                     borderRadius: BorderRadius.circular(16),
                     child: Card(
                       elevation: 4,
@@ -180,54 +180,71 @@ class _CustomerHomeState extends State<CustomerHome> {
                 ),
                 const SizedBox(height: 20),
                 Expanded(
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (context) => const PoolScreen(),
+                  child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: poolStreamForDate(todayDate),
+                    builder: (context, poolSnap) {
+                      int poolCount = 0;
+                      if (poolSnap.hasData && poolSnap.data != null) {
+                        poolCount = poolSnap.data!.docs
+                            .where((d) {
+                              final q = d.data()['quantity'];
+                              final n = q is int ? q : (q is num ? q.toInt() : 0);
+                              return n > 0;
+                            })
+                            .length;
+                      }
+                      return InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                              builder: (context) => const PoolScreen(),
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Card(
+                          elevation: 4,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.inbox,
+                                  size: 56,
+                                  color: Colors.teal.shade600,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Food Pool',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.teal.shade800,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  poolCount == 0
+                                      ? 'No items · View or allocate from today\'s pool'
+                                      : '$poolCount item${poolCount == 1 ? '' : 's'} in pool',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       );
                     },
-                    borderRadius: BorderRadius.circular(16),
-                    child: Card(
-                      elevation: 4,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.inbox,
-                              size: 56,
-                              color: Colors.teal.shade600,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Pool for today',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.teal.shade800,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'View or allocate food from today\'s pool',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
                   ),
                 ),
               ],

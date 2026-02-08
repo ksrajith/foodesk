@@ -2,20 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// Meal type keys for Firestore (must match kMealTypes labels).
 const List<String> kMealTypeKeys = ['Breakfast', 'Lunch', 'Dinner'];
-
-/// Hour options for 24-hour clock (0-23).
 List<int> get _hours24 => List.generate(24, (i) => i);
 
-class VendorOrderBeforeScreen extends StatefulWidget {
-  const VendorOrderBeforeScreen({Key? key}) : super(key: key);
+class SupplierOrderBeforeScreen extends StatefulWidget {
+  const SupplierOrderBeforeScreen({Key? key}) : super(key: key);
 
   @override
-  State<VendorOrderBeforeScreen> createState() => _VendorOrderBeforeScreenState();
+  State<SupplierOrderBeforeScreen> createState() => _SupplierOrderBeforeScreenState();
 }
 
-class _VendorOrderBeforeScreenState extends State<VendorOrderBeforeScreen> {
+class _SupplierOrderBeforeScreenState extends State<SupplierOrderBeforeScreen> {
   final Map<String, int> _orderBeforeHours = {
     'Breakfast': 8,
     'Lunch': 12,

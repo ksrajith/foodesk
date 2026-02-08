@@ -5,16 +5,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Meal types that can be selected (one or more per meal).
 const List<String> kMealTypeOptions = ['Breakfast', 'Lunch', 'Dinner'];
 
-class VendorAddEditMealScreen extends StatefulWidget {
-  const VendorAddEditMealScreen({Key? key, this.product}) : super(key: key);
+class SupplierAddEditMealScreen extends StatefulWidget {
+  const SupplierAddEditMealScreen({Key? key, this.product}) : super(key: key);
   /// If non-null, we are editing this product; otherwise adding new.
   final Map<String, dynamic>? product;
 
   @override
-  State<VendorAddEditMealScreen> createState() => _VendorAddEditMealScreenState();
+  State<SupplierAddEditMealScreen> createState() => _SupplierAddEditMealScreenState();
 }
 
-class _VendorAddEditMealScreenState extends State<VendorAddEditMealScreen> {
+class _SupplierAddEditMealScreenState extends State<SupplierAddEditMealScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -22,7 +22,6 @@ class _VendorAddEditMealScreenState extends State<VendorAddEditMealScreen> {
   final _stockController = TextEditingController();
   final _imageController = TextEditingController();
 
-  /// Selected meal types (one or more).
   final Set<String> _selectedMealTypes = {};
   bool _saving = false;
 
@@ -48,7 +47,6 @@ class _VendorAddEditMealScreenState extends State<VendorAddEditMealScreen> {
           }
         }
       }
-      // Backward compat: if no mealTypes, treat as all selected
       if (_selectedMealTypes.isEmpty) {
         _selectedMealTypes.addAll(kMealTypeOptions);
       }
@@ -127,7 +125,7 @@ class _VendorAddEditMealScreenState extends State<VendorAddEditMealScreen> {
         'price': price,
         'mealTypes': _selectedMealTypes.toList(),
         'vendorId': user.uid,
-        'vendorName': user.email ?? user.displayName ?? 'Vendor',
+        'vendorName': user.email ?? user.displayName ?? 'Supplier',
         'stock': stock,
       };
       final imagePath = _imageController.text.trim();
@@ -176,7 +174,6 @@ class _VendorAddEditMealScreenState extends State<VendorAddEditMealScreen> {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            // Meal name (required)
             TextFormField(
               controller: _nameController,
               decoration: InputDecoration(
@@ -193,8 +190,6 @@ class _VendorAddEditMealScreenState extends State<VendorAddEditMealScreen> {
               },
             ),
             const SizedBox(height: 20),
-
-            // Meal type checkboxes
             Text('Meal type *', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
             const SizedBox(height: 8),
             ...kMealTypeOptions.map((type) => CheckboxListTile(
@@ -212,8 +207,6 @@ class _VendorAddEditMealScreenState extends State<VendorAddEditMealScreen> {
                   activeColor: Colors.teal,
                 )),
             const SizedBox(height: 12),
-
-            // Price (required)
             TextFormField(
               controller: _priceController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -233,8 +226,6 @@ class _VendorAddEditMealScreenState extends State<VendorAddEditMealScreen> {
               },
             ),
             const SizedBox(height: 20),
-
-            // Available qty
             TextFormField(
               controller: _stockController,
               keyboardType: TextInputType.number,
@@ -254,8 +245,6 @@ class _VendorAddEditMealScreenState extends State<VendorAddEditMealScreen> {
               },
             ),
             const SizedBox(height: 20),
-
-            // Description (optional)
             TextFormField(
               controller: _descriptionController,
               maxLines: 2,
@@ -269,8 +258,6 @@ class _VendorAddEditMealScreenState extends State<VendorAddEditMealScreen> {
               ),
             ),
             const SizedBox(height: 20),
-
-            // Meal photo (optional) - path or URL
             TextFormField(
               controller: _imageController,
               decoration: InputDecoration(
@@ -283,7 +270,6 @@ class _VendorAddEditMealScreenState extends State<VendorAddEditMealScreen> {
               ),
             ),
             const SizedBox(height: 32),
-
             SizedBox(
               height: 50,
               child: ElevatedButton(

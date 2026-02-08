@@ -3,15 +3,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
-class VendorOrderSummary extends StatefulWidget {
-  const VendorOrderSummary({Key? key}) : super(key: key);
+class SupplierOrderSummary extends StatefulWidget {
+  const SupplierOrderSummary({Key? key}) : super(key: key);
 
   @override
-  State<VendorOrderSummary> createState() => _VendorOrderSummaryState();
+  State<SupplierOrderSummary> createState() => _SupplierOrderSummaryState();
 }
 
-class _VendorOrderSummaryState extends State<VendorOrderSummary> {
-  String selectedPeriod = 'all'; // 'today', 'yesterday', 'week', 'month', 'all'
+class _SupplierOrderSummaryState extends State<SupplierOrderSummary> {
+  String selectedPeriod = 'all';
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +25,6 @@ class _VendorOrderSummaryState extends State<VendorOrderSummary> {
       ),
       body: Column(
         children: [
-          // Period Selector
           Container(
             padding: const EdgeInsets.all(16),
             child: SingleChildScrollView(
@@ -46,7 +45,6 @@ class _VendorOrderSummaryState extends State<VendorOrderSummary> {
             ),
           ),
           const Divider(height: 1),
-          // Order Summary List
           Expanded(
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: FirebaseFirestore.instance
@@ -78,10 +76,7 @@ class _VendorOrderSummaryState extends State<VendorOrderSummary> {
                   );
                 }
 
-                // Filter orders by selected period
                 final filteredDocs = _filterOrdersByPeriod(docs);
-
-                // Group orders by product and date
                 final summaryData = _generateSummaryData(filteredDocs);
 
                 if (summaryData.isEmpty) {
@@ -181,7 +176,6 @@ class _VendorOrderSummaryState extends State<VendorOrderSummary> {
 
   List<Map<String, dynamic>> _generateSummaryData(
       List<QueryDocumentSnapshot<Map<String, dynamic>>> docs) {
-    // Group by product name, delivery/order date, and meal type
     final Map<String, Map<String, dynamic>> grouped = {};
 
     for (final doc in docs) {
@@ -216,7 +210,6 @@ class _VendorOrderSummaryState extends State<VendorOrderSummary> {
       }
     }
 
-    // Convert to list and sort by date (newest first)
     final summaryList = grouped.values.toList();
     summaryList.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
 
@@ -241,7 +234,6 @@ class _VendorOrderSummaryState extends State<VendorOrderSummary> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Product Name, Date and Meal Type
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -286,7 +278,6 @@ class _VendorOrderSummaryState extends State<VendorOrderSummary> {
               ],
             ),
             const SizedBox(height: 16),
-            // Statistics
             Row(
               children: [
                 Expanded(

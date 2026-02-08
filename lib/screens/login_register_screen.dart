@@ -19,7 +19,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
   final TextEditingController _nameController = TextEditingController();
   
   String selectedRole = 'Customer';
-  final List<String> roles = ['Customer', 'Vendor', 'Admin'];
+  final List<String> roles = ['Customer', 'Supplier', 'Admin'];
   bool _obscurePassword = true;
 
   @override
@@ -175,8 +175,8 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
       final role = ((profile['role'] ?? 'Customer') as String).trim().toLowerCase();
       if (role == 'admin') {
         Navigator.pushReplacementNamed(context, '/admin-dashboard');
-      } else if (role == 'vendor') {
-        Navigator.pushReplacementNamed(context, '/vendor-dashboard');
+      } else if (role == 'vendor' || role == 'supplier') {
+        Navigator.pushReplacementNamed(context, '/supplier-dashboard');
       } else {
         Navigator.pushReplacementNamed(context, '/customer-home');
       }
@@ -404,7 +404,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                                 child: Row(
                                   children: [
                                     Icon(
-                                      role == 'Customer' ? Icons.shopping_cart : role == 'Vendor' ? Icons.store : Icons.admin_panel_settings,
+                                      role == 'Customer' ? Icons.shopping_cart : role == 'Supplier' ? Icons.store : Icons.admin_panel_settings,
                                       size: 20,
                                       color: Colors.teal.shade600,
                                     ),

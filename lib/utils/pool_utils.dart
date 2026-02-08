@@ -9,7 +9,7 @@ String get todayDate {
 /// Pool document id for a given date and product.
 String poolDocId(String date, String productId) => '${date}_$productId';
 
-/// Returns true if the order's meal type "Order Before" deadline for the vendor has passed today.
+/// Returns true if the order's meal type "Order Before" deadline for the supplier has passed today.
 Future<bool> isOrderPastDeadline(Map<String, dynamic> order) async {
   final vendorId = order['vendorId'] as String?;
   final mealType = order['mealType'] as String?;
