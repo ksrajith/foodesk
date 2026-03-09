@@ -7,13 +7,13 @@ Future<Map<String, dynamic>> getAppSettings() async {
   final snap = await FirebaseFirestore.instance.collection('app_settings').doc(_settingsDocId).get();
   if (!snap.exists || snap.data() == null) {
     return {
-      'showMealPricesToCustomers': true,
+      'showMealPricesToCustomers': false,
       'mealLimits': {'Breakfast': 2, 'Lunch': 1, 'Dinner': 2},
     };
   }
   final data = snap.data()!;
   return {
-    'showMealPricesToCustomers': data['showMealPricesToCustomers'] as bool? ?? true,
+    'showMealPricesToCustomers': data['showMealPricesToCustomers'] as bool? ?? false,
     'mealLimits': data['mealLimits'] is Map
         ? Map<String, int>.from(
             (data['mealLimits'] as Map).map((k, v) => MapEntry(k.toString(), (v is int) ? v : (v is num ? v.toInt() : 2))),
@@ -36,5 +36,5 @@ Future<int> getMealLimitForType(String mealType) async {
 /// Returns true if meal prices should be shown to customers.
 Future<bool> getShowMealPricesToCustomers() async {
   final settings = await getAppSettings();
-  return settings['showMealPricesToCustomers'] as bool? ?? true;
+  return settings['showMealPricesToCustomers'] as bool? ?? false;
 }

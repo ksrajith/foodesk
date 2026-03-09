@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../utils/app_settings.dart';
+import '../utils/pool_utils.dart';
 import '../widgets/order_before_countdown.dart';
 
 const List<String> kMealTypes = ['Breakfast', 'Lunch', 'Dinner'];
@@ -82,7 +83,7 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
           .get();
       final list = snapshot.docs
           .map((d) => {'id': d.id, ...d.data()})
-          .where((p) => (p['stock'] ?? 0) > 0)
+          .where((p) => (p['stock'] ?? 0) > 0 && p['active'] != false)
           .toList();
       setState(() {
         _products = list;
@@ -118,19 +119,13 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
     }
   }
 
-  /// True if selected date is today and Order Before deadline has passed (late order path).
+  /// True if Order Before deadline for the selected date and meal type has passed (late order path when date is today).
   Future<bool> _isLateOrder() async {
-    if (!_isSelectedDateToday) return false;
     final product = _selectedProduct ?? (_productsForSelectedMealType.isNotEmpty ? _productsForSelectedMealType.first : null);
     final vendorId = product?['vendorId'] as String?;
     if (vendorId == null || _selectedMealType == null) return false;
-    final fieldName = 'orderBefore$_selectedMealType';
-    final snap = await FirebaseFirestore.instance.collection('vendor_config').doc(vendorId).get();
-    if (!snap.exists || snap.data() == null) return false;
-    final hour = snap.data()![fieldName];
-    final h = hour is int ? hour : (hour is num ? hour.toInt() : null);
-    if (h == null) return false;
-    final deadline = OrderBeforeCountdown.deadlineForDelivery(_selectedDate, h);
+    final deadline = await getOrderBeforeDeadline(vendorId, _selectedMealType!, _selectedDate);
+    if (deadline == null) return false;
     return !DateTime.now().isBefore(deadline);
   }
 
@@ -244,7 +239,8 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
     final userProfile =
         (userDoc != null && userDoc.exists) ? userDoc.data() : null;
     final totalPrice = (product['price'] ?? 0) * quantity;
-    final customerId = userProfile?['id'] ?? firebaseUser?.uid ?? '';
+    // Use auth uid so notifications can find fcmToken in users/{uid}
+    final customerId = firebaseUser?.uid ?? userProfile?['id'] as String? ?? '';
 
     // Enforce meal limit per day for customers
     final role = (userProfile?['role'] as String?)?.toLowerCase() ?? 'customer';
@@ -301,7 +297,7 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
 
         final orderRef = FirebaseFirestore.instance.collection('orders').doc();
         txn.set(orderRef, {
-          'customerId': userProfile?['id'] ?? firebaseUser?.uid ?? '',
+          'customerId': firebaseUser?.uid ?? userProfile?['id'] as String? ?? '',
           'customerName': userProfile?['name'] ?? firebaseUser?.displayName ?? '',
           'productId': product['id'] ?? '',
           'productName': product['name'] ?? '',
@@ -317,10 +313,14 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
       });
 
       if (!mounted) return;
+      final showPrices = await getShowMealPricesToCustomers();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Order placed successfully! Total: Rs.${totalPrice.toStringAsFixed(2)}',
+            showPrices
+                ? 'Order placed successfully! Total: Rs.${totalPrice.toStringAsFixed(2)}'
+                : 'Order placed successfully!',
           ),
           backgroundColor: Colors.green,
         ),
@@ -351,7 +351,8 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
         : null;
     final userProfile = (userDoc != null && userDoc.exists) ? userDoc.data() : null;
     final totalPrice = (product['price'] ?? 0) * quantity;
-    final customerId = userProfile?['id'] ?? firebaseUser?.uid ?? '';
+    // Use auth uid so Cloud Function can find fcmToken in users/{uid}
+    final customerId = firebaseUser?.uid ?? userProfile?['id'] as String? ?? '';
     final customerEmail = userProfile?['email'] as String? ?? firebaseUser?.email ?? '';
 
     // Enforce meal limit for customers (same as normal order)
@@ -449,26 +450,152 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance.collection('vendor_config').doc(vendorId).snapshots(),
       builder: (context, snapshot) {
-        int? hour;
-        if (snapshot.hasData && snapshot.data!.exists && snapshot.data!.data() != null) {
-          final raw = snapshot.data!.data()![fieldName];
-          if (raw is int && raw >= 0 && raw <= 23) hour = raw;
-          else if (raw is num) hour = raw.toInt().clamp(0, 23);
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return ElevatedButton(
+            onPressed: hasProducts ? _confirmOrder : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal.shade600,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: const Text('Confirm'),
+          );
         }
-        final deadline = hour != null ? OrderBeforeCountdown.deadlineForDelivery(_selectedDate, hour) : null;
-        final deadlinePassed = deadline != null && !DateTime.now().isBefore(deadline);
-        // Allow confirm for today when deadline passed (late order path); otherwise disable when deadline passed
-        final disabled = !hasProducts || (deadlinePassed && !_isSelectedDateToday);
-        return ElevatedButton(
-          onPressed: disabled ? null : _confirmOrder,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.teal.shade600,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-          ),
-          child: const Text('Confirm'),
+        final data = snapshot.data!.data();
+        if (data == null) {
+          return ElevatedButton(
+            onPressed: hasProducts ? _confirmOrder : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal.shade600,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: const Text('Confirm'),
+          );
+        }
+        return FutureBuilder<DateTime?>(
+          future: getOrderBeforeDeadline(vendorId, _selectedMealType!, _selectedDate),
+          builder: (context, deadlineSnap) {
+            final deadline = deadlineSnap.data;
+            final deadlinePassed = deadline != null && !DateTime.now().isBefore(deadline);
+            // Allow confirm when deadline passed only if selected date is today (late order path); else disable
+            final disabled = !hasProducts || (deadlinePassed && !_isSelectedDateToday);
+            return ElevatedButton(
+              onPressed: disabled ? null : _confirmOrder,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal.shade600,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: const Text('Confirm'),
+            );
+          },
         );
       },
+    );
+  }
+
+  /// Shows a dialog with meal name, photo, remaining stock, and description.
+  void _showMealDetail(Map<String, dynamic> product) {
+    final name = product['name'] as String? ?? 'Unknown';
+    final description = product['description'] as String? ?? '';
+    final stock = (product['stock'] is int) ? product['stock'] as int : (product['stock'] is num ? (product['stock'] as num).toInt() : 0);
+    final imagePath = product['image']?.toString();
+
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(name),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (imagePath != null && imagePath.isNotEmpty && imagePath.startsWith('assets/'))
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    imagePath,
+                    height: 180,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _mealImagePlaceholder(180),
+                  ),
+                )
+              else if (imagePath != null && imagePath.isNotEmpty && (imagePath.startsWith('http://') || imagePath.startsWith('https://')))
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    imagePath,
+                    height: 180,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _mealImagePlaceholder(180),
+                  ),
+                )
+              else
+                _mealImagePlaceholder(120),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Icon(Icons.inventory_2, size: 20, color: Colors.teal.shade700),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Remaining stock: $stock',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.teal.shade700,
+                    ),
+                  ),
+                ],
+              ),
+              if (description.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Description',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade800,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _mealImagePlaceholder(double height) {
+    return Container(
+      height: height,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(
+        Icons.restaurant,
+        size: 64,
+        color: Colors.grey.shade400,
+      ),
     );
   }
 
@@ -479,6 +606,7 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
     if (vendorId == null || vendorId.isEmpty || _selectedMealType == null) return const SizedBox.shrink();
 
     final fieldName = 'orderBefore$_selectedMealType';
+    final baseField = 'orderBefore${_selectedMealType}DeadlineBase';
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance.collection('vendor_config').doc(vendorId).snapshots(),
       builder: (context, snapshot) {
@@ -490,10 +618,13 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
             ? (hourRaw >= 0 && hourRaw <= 23 ? hourRaw : null)
             : (hourRaw is num ? hourRaw.toInt().clamp(0, 23) : null);
         if (hour == null) return const SizedBox.shrink();
+        final base = data[baseField] as String?;
+        final useDayBefore = base != kDeadlineBaseCurrent;
         return OrderBeforeCountdown(
           orderBeforeHour24: hour,
           label: 'Recommended Order Before',
           deliveryDate: _selectedDate,
+          useDayBeforeDeadline: useDayBefore,
         );
       },
     );
@@ -545,7 +676,7 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
               : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                   stream: appSettingsStream(),
                   builder: (context, settingsSnap) {
-                    final showPrices = settingsSnap.data?.data()?['showMealPricesToCustomers'] as bool? ?? true;
+                    final showPrices = settingsSnap.data?.data()?['showMealPricesToCustomers'] as bool? ?? false;
                     return SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
                   child: Column(
@@ -703,6 +834,30 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
                             ),
                           ),
                         ),
+                      if (_selectedProduct != null) ...[
+                        const SizedBox(height: 8),
+                        InkWell(
+                          onTap: () => _showMealDetail(_selectedProduct!),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              children: [
+                                Icon(Icons.visibility, size: 18, color: Colors.teal.shade700),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'View meal',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.teal.shade700,
+                                    fontWeight: FontWeight.w600,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 24),
                       // Quantity
                       const Text(

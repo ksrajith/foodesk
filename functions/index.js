@@ -1,8 +1,17 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-const nodemailer = require("nodemailer");
 
 admin.initializeApp();
+
+// Lazy-load nodemailer to avoid deployment timeout during initial load
+function getNodemailer() {
+  return require("nodemailer");
+}
+
+/** Returns true if the value looks like a valid FCM device token. */
+function isValidFcmToken(value) {
+  return typeof value === "string" && value.length >= 50 && value.length <= 2000 && value.trim().length > 0;
+}
 
 /**
  * When a registration_requests document is updated and status is 'approved' or 'rejected',
@@ -117,7 +126,7 @@ exports.onUserAccountStatusChanged = functions.firestore
       return null;
     }
 
-    const transporter = nodemailer.createTransport({
+    const transporter = getNodemailer().createTransport({
       host: smtpHost,
       port: smtpPort,
       secure: smtpPort === 465,
@@ -163,7 +172,7 @@ function getSmtpTransporter() {
   const smtpHost = process.env.SMTP_HOST || (config.smtp && config.smtp.host) || "smtp.gmail.com";
   const smtpPort = parseInt(process.env.SMTP_PORT || (config.smtp && config.smtp.port) || "587", 10);
   if (!smtpUser || !smtpPass) return null;
-  return nodemailer.createTransport({
+  return getNodemailer().createTransport({
     host: smtpHost,
     port: smtpPort,
     secure: smtpPort === 465,
@@ -229,6 +238,47 @@ exports.onLateOrderResponded = functions.firestore
     const afterStatus = after.status || "";
     if (afterStatus !== "Pending" && afterStatus !== "Rejected") return null;
     const toEmail = after.customerEmail;
+    const customerId = after.customerId;
+    const productName = after.productName || "your order";
+    const vendorComment = after.vendorComment || "";
+
+    // Send push notification to customer if we have a valid FCM token
+    if (customerId && typeof customerId === "string") {
+      try {
+        const userSnap = await admin.firestore().collection("users").doc(customerId).get();
+        const fcmToken = userSnap.exists && userSnap.data() && userSnap.data().fcmToken;
+        if (!fcmToken) {
+          console.warn("onLateOrderResponded: no fcmToken for customer", customerId, "- ensure customer opened app and allowed notifications");
+        } else if (!isValidFcmToken(fcmToken)) {
+          console.warn("onLateOrderResponded: invalid fcmToken for customer", customerId, "- token format/length invalid");
+        } else {
+          const isApproved = afterStatus === "Pending";
+          const title = isApproved
+            ? "Late order approved"
+            : "Late order not accepted";
+          const body = isApproved
+            ? productName + " – Your late reservation was approved by the vendor."
+            : (productName + (vendorComment ? " – " + vendorComment : " – Your late reservation could not be accepted."));
+          await admin.messaging().send({
+            token: fcmToken,
+            notification: { title, body },
+            android: {
+              priority: "high",
+              notification: {
+                channelId: "food_desk_orders",
+                title,
+                body,
+              },
+            },
+          });
+          console.log("Late order FCM sent to customer", customerId);
+        }
+      } catch (fcmErr) {
+        console.warn("onLateOrderResponded: FCM send failed", fcmErr);
+      }
+    }
+
+    // Send email to customer
     if (!toEmail || typeof toEmail !== "string" || !toEmail.includes("@")) {
       console.warn("onLateOrderResponded: no customer email on order", context.params.orderId);
       return null;
@@ -238,8 +288,6 @@ exports.onLateOrderResponded = functions.firestore
       console.warn("onLateOrderResponded: SMTP not configured.");
       return null;
     }
-    const productName = after.productName || "your order";
-    const vendorComment = after.vendorComment || "";
     let subject, text;
     if (afterStatus === "Pending") {
       subject = "Your late meal reservation was approved";
@@ -278,3 +326,45 @@ exports.onLateOrderResponded = functions.firestore
     }
     return null;
   });
+
+/**
+ * Callable: send a test push notification to the currently authenticated user.
+ * Used to validate that FCM is configured and the user's token is valid.
+ */
+exports.sendTestNotification = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Must be logged in.");
+  }
+  const uid = context.auth.uid;
+  const userSnap = await admin.firestore().collection("users").doc(uid).get();
+  const fcmToken = userSnap.exists && userSnap.data() && userSnap.data().fcmToken;
+  if (!fcmToken) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "No FCM token. Open the app, allow notifications, and try again."
+    );
+  }
+  if (!isValidFcmToken(fcmToken)) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Stored FCM token is invalid. Try logging out and back in, then allow notifications."
+    );
+  }
+  await admin.messaging().send({
+    token: fcmToken,
+    notification: {
+      title: "FoodDesk test",
+      body: "If you see this, push notifications are working.",
+    },
+    android: {
+      priority: "high",
+      notification: {
+        channelId: "food_desk_orders",
+        title: "FoodDesk test",
+        body: "If you see this, push notifications are working.",
+      },
+    },
+  });
+  console.log("Test notification sent to user", uid);
+  return { success: true, message: "Test notification sent." };
+});

@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import '../utils/admin_report_pdf.dart';
 
 class SupplierOrderSummary extends StatefulWidget {
   const SupplierOrderSummary({Key? key}) : super(key: key);
@@ -12,6 +14,16 @@ class SupplierOrderSummary extends StatefulWidget {
 
 class _SupplierOrderSummaryState extends State<SupplierOrderSummary> {
   String selectedPeriod = 'all';
+  List<Map<String, dynamic>> _lastSummaryData = [];
+  String _lastPeriodLabel = 'All Time';
+
+  static const Map<String, String> _periodLabels = {
+    'today': 'Today',
+    'yesterday': 'Yesterday',
+    'week': 'This Week',
+    'month': 'This Month',
+    'all': 'All Time',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +34,24 @@ class _SupplierOrderSummaryState extends State<SupplierOrderSummary> {
         title: const Text('Order Summary'),
         backgroundColor: Colors.green.shade600,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.print),
+            tooltip: 'Print',
+            onPressed: () async {
+              await printOrderSummaryPdf(
+                reportTitle: 'Order Summary',
+                periodLabel: _lastPeriodLabel,
+                summaryData: _lastSummaryData,
+              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('PDF ready to print or share')),
+                );
+              }
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -78,6 +108,19 @@ class _SupplierOrderSummaryState extends State<SupplierOrderSummary> {
 
                 final filteredDocs = _filterOrdersByPeriod(docs);
                 final summaryData = _generateSummaryData(filteredDocs);
+                // Only update state when summary actually changed to avoid frequent refresh
+                final newSignature = summaryData.map((r) => '${r['productName']}|${r['dateKey']}|${r['mealType']}|${r['orderCount']}|${r['totalQuantity']}|${r['totalRevenue']}').toList();
+                final oldSignature = _lastSummaryData.map((r) => '${r['productName']}|${r['dateKey']}|${r['mealType']}|${r['orderCount']}|${r['totalQuantity']}|${r['totalRevenue']}').toList();
+                if (newSignature.length != oldSignature.length || !listEquals(newSignature, oldSignature) || _lastPeriodLabel != (_periodLabels[selectedPeriod] ?? 'All Time')) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() {
+                        _lastSummaryData = summaryData;
+                        _lastPeriodLabel = _periodLabels[selectedPeriod] ?? 'All Time';
+                      });
+                    }
+                  });
+                }
 
                 if (summaryData.isEmpty) {
                   return Center(

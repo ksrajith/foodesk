@@ -3,13 +3,107 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/date_time_utils.dart';
 import '../utils/order_utils.dart';
+import '../utils/pool_utils.dart';
+import '../utils/admin_report_pdf.dart';
 
-class SupplierOrderList extends StatelessWidget {
+class SupplierOrderList extends StatefulWidget {
   const SupplierOrderList({Key? key}) : super(key: key);
 
   @override
+  State<SupplierOrderList> createState() => _SupplierOrderListState();
+}
+
+class _SupplierOrderListState extends State<SupplierOrderList> {
+  static const List<String> _dateFilterModes = ['All', 'Year', 'Month', 'Week', 'Day'];
+  String _dateFilterMode = 'All';
+  DateTime _selectedDate = DateTime.now();
+  bool _sortByQuantity = false;
+
+  static DateTime? _parseOrderDate(dynamic v) {
+    if (v == null) return null;
+    if (v is DateTime) return v;
+    if (v is String) return DateTime.tryParse(v);
+    if (v is Timestamp) return v.toDate();
+    return null;
+  }
+
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _filterAndSort(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    MapEntry<String, String>? range;
+    if (_dateFilterMode != 'All') {
+      final poolMode = _dateFilterMode == 'Day'
+          ? 'Daily'
+          : _dateFilterMode == 'Week'
+              ? 'Weekly'
+              : _dateFilterMode == 'Month'
+                  ? 'Monthly'
+                  : 'Yearly';
+      range = poolDateRangeForMode(_selectedDate, poolMode);
+    }
+    var list = docs.where((d) {
+      if (range == null) return true;
+      final orderDate = _parseOrderDate(d.data()['orderDate']) ?? _parseOrderDate(d.data()['deliveryDate']);
+      if (orderDate == null) return false;
+      final str = dateToDateString(orderDate);
+      return str.compareTo(range.key) >= 0 && str.compareTo(range.value) <= 0;
+    }).toList();
+
+    if (_sortByQuantity) {
+      list.sort((a, b) {
+        final qa = (a.data()['quantity'] is int) ? a.data()['quantity'] as int : (a.data()['quantity'] as num?)?.toInt() ?? 0;
+        final qb = (b.data()['quantity'] is int) ? b.data()['quantity'] as int : (b.data()['quantity'] as num?)?.toInt() ?? 0;
+        if (qb != qa) return qb.compareTo(qa);
+        final da = _parseOrderDate(a.data()['orderDate']);
+        final db = _parseOrderDate(b.data()['orderDate']);
+        if (da == null && db == null) return 0;
+        if (da == null) return 1;
+        if (db == null) return -1;
+        return db.compareTo(da);
+      });
+    } else {
+      list.sort((a, b) {
+        final da = _parseOrderDate(a.data()['orderDate']);
+        final db = _parseOrderDate(b.data()['orderDate']);
+        if (da == null && db == null) return 0;
+        if (da == null) return 1;
+        if (db == null) return -1;
+        return db.compareTo(da);
+      });
+    }
+    return list;
+  }
+
+  String _dateRangeLabel() {
+    if (_dateFilterMode == 'All') return 'All';
+    if (_dateFilterMode == 'Day') return DateTimeUtils.formatAny(_selectedDate);
+    if (_dateFilterMode == 'Week' || _dateFilterMode == 'Month' || _dateFilterMode == 'Year') {
+      final poolMode = _dateFilterMode == 'Week' ? 'Weekly' : _dateFilterMode == 'Month' ? 'Monthly' : 'Yearly';
+      final range = poolDateRangeForMode(_selectedDate, poolMode);
+      return '${range.key} to ${range.value}';
+    }
+    return _dateFilterMode;
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) setState(() => _selectedDate = picked);
+  }
+
+  Future<void> _printReport(List<Map<String, dynamic>> orders, double totalCost) async {
+    final sortLabel = _sortByQuantity ? 'Sorted by quantity' : 'Sorted by date';
+    final reportTitle = 'My Orders · ${_dateRangeLabel()} · $sortLabel';
+    await printTotalOrdersPdf(reportTitle: reportTitle, orders: orders, totalCost: totalCost);
+  }
+
+  @override
   Widget build(BuildContext context) {
-  final firebaseUser = FirebaseAuth.instance.currentUser;
+    final firebaseUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       appBar: AppBar(
@@ -18,10 +112,10 @@ class SupplierOrderList extends StatelessWidget {
         foregroundColor: Colors.white,
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-    stream: FirebaseFirestore.instance
-      .collection('orders')
-      .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
-      .snapshots(),
+        stream: FirebaseFirestore.instance
+            .collection('orders')
+            .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
+            .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -30,6 +124,19 @@ class SupplierOrderList extends StatelessWidget {
             return Center(child: Text('Error: ${snapshot.error}'));
           }
           final docs = snapshot.data?.docs ?? [];
+          final filtered = _filterAndSort(docs);
+          final orderMaps = filtered.map((d) => Map<String, dynamic>.from(d.data())).toList();
+          final totalCost = orderMaps.fold<double>(0, (sum, o) => sum + ((o['totalPrice'] as num?)?.toDouble() ?? 0));
+
+          void doPrint() async {
+            await _printReport(orderMaps, totalCost);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('PDF ready to print or share')),
+              );
+            }
+          }
+
           if (docs.isEmpty) {
             return Center(
               child: Column(
@@ -50,12 +157,31 @@ class SupplierOrderList extends StatelessWidget {
               ),
             );
           }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: docs.length,
-            itemBuilder: (context, index) {
-              final doc = docs[index];
-              final order = doc.data();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildFilterSortBar(doPrint),
+              Expanded(
+                child: filtered.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.filter_list_off, size: 64, color: Colors.grey.shade400),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No orders in selected period',
+                              style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final doc = filtered[index];
+                          final order = doc.data();
               return Card(
                   elevation: 3,
                   margin: const EdgeInsets.only(bottom: 16),
@@ -281,8 +407,75 @@ class SupplierOrderList extends StatelessWidget {
                   ),
                 );
             },
+          ),
+              ),
+            ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildFilterSortBar(VoidCallback onPrint) {
+    return Material(
+      elevation: 1,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text('Filter: ', style: TextStyle(fontWeight: FontWeight.w500)),
+                DropdownButton<String>(
+                  value: _dateFilterMode,
+                  items: _dateFilterModes.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+                  onChanged: (v) => setState(() => _dateFilterMode = v ?? 'All'),
+                ),
+                if (_dateFilterMode != 'All') ...[
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: _pickDate,
+                    icon: const Icon(Icons.calendar_today, size: 18),
+                    label: Text(
+                      _dateFilterMode == 'Day'
+                          ? DateTimeUtils.formatAny(_selectedDate)
+                          : _dateFilterMode == 'Year'
+                              ? '${_selectedDate.year}'
+                              : _dateFilterMode == 'Month'
+                                  ? '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}'
+                                  : _dateRangeLabel(),
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ],
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.print),
+                  tooltip: 'Print',
+                  onPressed: onPrint,
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                const Text('Sort: ', style: TextStyle(fontWeight: FontWeight.w500)),
+                ChoiceChip(
+                  label: const Text('By date'),
+                  selected: !_sortByQuantity,
+                  onSelected: (v) => setState(() => _sortByQuantity = false),
+                ),
+                const SizedBox(width: 8),
+                ChoiceChip(
+                  label: const Text('By quantity'),
+                  selected: _sortByQuantity,
+                  onSelected: (v) => setState(() => _sortByQuantity = true),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

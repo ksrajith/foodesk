@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 /// Given an hour (0-23) in 24h format. If [deliveryDate] is set, the deadline is
-/// the day before delivery at that hour (deadline applies only to the following day).
+/// either (deliveryDate - 1 day) at hour [useDayBeforeDeadline] or deliveryDate at hour [same day].
 /// Otherwise shows countdown to today at that hour.
 class OrderBeforeCountdown extends StatefulWidget {
   const OrderBeforeCountdown({
@@ -10,18 +10,32 @@ class OrderBeforeCountdown extends StatefulWidget {
     required this.orderBeforeHour24,
     this.label = 'Recommended Order Before',
     this.deliveryDate,
+    this.useDayBeforeDeadline = true,
   }) : super(key: key);
 
   final int orderBeforeHour24;
   final String label;
-  /// If set, deadline = (deliveryDate - 1 day) at orderBeforeHour24.
+  /// If set, deadline is computed from this date using [useDayBeforeDeadline].
   final DateTime? deliveryDate;
+  /// True = deadline on (deliveryDate - 1 day) at hour; false = deadline on deliveryDate at hour.
+  final bool useDayBeforeDeadline;
 
-  /// Deadline for "next day" rule: day before [deliveryDate] at [hour]. Use from place_meal_screen to disable Confirm.
+  /// Deadline for "day before" rule: (deliveryDate - 1 day) at [hour].
   static DateTime deadlineForDelivery(DateTime deliveryDate, int hour) {
     final dayBefore = DateTime(deliveryDate.year, deliveryDate.month, deliveryDate.day)
         .subtract(const Duration(days: 1));
     return DateTime(dayBefore.year, dayBefore.month, dayBefore.day, hour.clamp(0, 23), 0);
+  }
+
+  /// Deadline for "current date" rule: deliveryDate (same day) at [hour].
+  static DateTime deadlineForDeliverySameDay(DateTime deliveryDate, int hour) {
+    return DateTime(
+      deliveryDate.year,
+      deliveryDate.month,
+      deliveryDate.day,
+      hour.clamp(0, 23),
+      0,
+    );
   }
 
   @override
@@ -49,7 +63,9 @@ class _OrderBeforeCountdownState extends State<OrderBeforeCountdown> {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final deadline = widget.deliveryDate != null
-        ? OrderBeforeCountdown.deadlineForDelivery(widget.deliveryDate!, widget.orderBeforeHour24)
+        ? (widget.useDayBeforeDeadline
+            ? OrderBeforeCountdown.deadlineForDelivery(widget.deliveryDate!, widget.orderBeforeHour24)
+            : OrderBeforeCountdown.deadlineForDeliverySameDay(widget.deliveryDate!, widget.orderBeforeHour24))
         : DateTime(now.year, now.month, now.day, widget.orderBeforeHour24.clamp(0, 23), 0);
 
     String text;

@@ -1,21 +1,82 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../utils/admin_report_pdf.dart';
 import 'supplier_add_edit_meal_screen.dart';
 
-class SupplierProductList extends StatelessWidget {
+const List<String> _mealTypeFilterOptions = ['Breakfast', 'Lunch', 'Dinner'];
+const List<String> _statusFilterOptions = ['All', 'Available', 'Unavailable'];
+
+class SupplierProductList extends StatefulWidget {
   const SupplierProductList({Key? key}) : super(key: key);
 
   @override
+  State<SupplierProductList> createState() => _SupplierProductListState();
+}
+
+class _SupplierProductListState extends State<SupplierProductList> {
+  /// Optional filter: null = All, else filter by this meal type.
+  String? _selectedMealTypeFilter;
+  /// Status filter: All, Available (active), Unavailable (inactive). Default All.
+  String _statusFilter = 'All';
+  List<Map<String, dynamic>> _lastProducts = [];
+
+  bool _isActive(Map<String, dynamic> product) => product['active'] != false;
+
+  bool _productMatchesMealTypeFilter(Map<String, dynamic> product) {
+    if (_selectedMealTypeFilter == null) return true;
+    final types = product['mealTypes'];
+    if (types == null || types is! List) return false;
+    return (types as List).contains(_selectedMealTypeFilter);
+  }
+
+  bool _productMatchesStatusFilter(Map<String, dynamic> product) {
+    if (_statusFilter == 'All') return true;
+    if (_statusFilter == 'Available') return _isActive(product);
+    return !_isActive(product);
+  }
+
+  /// Sort: active first, then inactive (inactive at bottom).
+  List<Map<String, dynamic>> _sortActiveFirst(List<Map<String, dynamic>> list) {
+    final copy = List<Map<String, dynamic>>.from(list);
+    copy.sort((a, b) {
+      final aa = _isActive(a);
+      final bb = _isActive(b);
+      if (aa != bb) return aa ? -1 : 1;
+      return ((a['name'] ?? '') as String).compareTo((b['name'] ?? '') as String);
+    });
+    return copy;
+  }
+
+  @override
   Widget build(BuildContext context) {
-  final firebaseUser = FirebaseAuth.instance.currentUser;
+    final firebaseUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Meals'),
+        title: const Text('My Menu'),
         backgroundColor: Colors.teal.shade600,
         foregroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.print),
+            tooltip: 'Print',
+            onPressed: () async {
+              await printMyMealsPdf(
+                products: _lastProducts,
+                mealTypeFilter: _selectedMealTypeFilter,
+                statusFilter: _statusFilter == 'All' ? null : _statusFilter,
+              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('PDF ready to print or share')),
+                );
+              }
+            },
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
@@ -32,58 +93,73 @@ class SupplierProductList extends StatelessWidget {
         label: const Text('Add Meal'),
         backgroundColor: Colors.teal.shade600,
       ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-    stream: FirebaseFirestore.instance
-      .collection('products')
-      .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
-      .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          final docs = snapshot.data?.docs ?? [];
-          if (docs.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.inventory_2_outlined,
-                    size: 100,
-                    color: Colors.grey.shade300,
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'No products yet',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade600,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildMealTypeFilter(),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('products')
+                  .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+                final docs = snapshot.data?.docs ?? [];
+                final allProducts = docs.map((d) => {'id': d.id, ...d.data()}).toList();
+                var supplierProducts = allProducts
+                    .where(_productMatchesMealTypeFilter)
+                    .where(_productMatchesStatusFilter)
+                    .toList();
+                supplierProducts = _sortActiveFirst(supplierProducts);
+                // Only update state when the list actually changed to avoid frequent refresh
+                final ids = supplierProducts.map((p) => p['id'] as String?).toList();
+                final prevIds = _lastProducts.map((p) => p['id'] as String?).toList();
+                if (ids.length != prevIds.length || !listEquals(ids, prevIds)) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) setState(() => _lastProducts = supplierProducts);
+                  });
+                }
+                if (docs.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.inventory_2_outlined, size: 100, color: Colors.grey.shade300),
+                        const SizedBox(height: 24),
+                        Text('No products yet', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: Colors.grey.shade600)),
+                        const SizedBox(height: 8),
+                        Text('Start adding products to your store', style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
+                        const SizedBox(height: 24),
+                        Icon(Icons.add_circle_outline, size: 48, color: Colors.grey.shade400),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Start adding products to your store',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade500,
+                  );
+                }
+                if (supplierProducts.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.filter_list_off, size: 64, color: Colors.grey.shade400),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No meals match the selected filter',
+                          style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text('Try a different meal type or clear the filter', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  Icon(
-                    Icons.add_circle_outline,
-                    size: 48,
-                    color: Colors.grey.shade400,
-                  ),
-                ],
-              ),
-            );
-          }
-          final supplierProducts = docs.map((d) => {'id': d.id, ...d.data()}).toList();
-          return ListView.builder(
+                  );
+                }
+                return ListView.builder(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
             itemCount: supplierProducts.length,
             itemBuilder: (context, index) {
@@ -153,13 +229,37 @@ class SupplierProductList extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                product['name'] ?? 'Unknown Product',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      product['name'] ?? 'Unknown Product',
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: _isActive(product) ? Colors.green.shade50 : Colors.orange.shade50,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: _isActive(product) ? Colors.green.shade300 : Colors.orange.shade300,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      _isActive(product) ? 'Available' : 'Unavailable',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: _isActive(product) ? Colors.green.shade700 : Colors.orange.shade700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 6),
                               Text(
@@ -299,7 +399,50 @@ class SupplierProductList extends StatelessWidget {
                 );
             },
           );
-        },
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMealTypeFilter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.grey.shade100,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Text('Meal type:', style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
+              const SizedBox(width: 12),
+              DropdownButtonHideUnderline(
+                child: DropdownButton<String?>(
+                  value: _selectedMealTypeFilter,
+                  hint: const Text('All'),
+                  isDense: true,
+                  items: [
+                    const DropdownMenuItem<String?>(value: null, child: Text('All')),
+                    ..._mealTypeFilterOptions.map((t) => DropdownMenuItem<String?>(value: t, child: Text(t))),
+                  ],
+                  onChanged: (v) => setState(() => _selectedMealTypeFilter = v),
+                ),
+              ),
+              const SizedBox(width: 24),
+              Text('Status:', style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
+              const SizedBox(width: 12),
+              DropdownButton<String>(
+                value: _statusFilter,
+                isDense: true,
+                items: _statusFilterOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                onChanged: (v) => setState(() => _statusFilter = v ?? 'All'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

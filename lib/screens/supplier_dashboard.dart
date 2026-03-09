@@ -66,17 +66,19 @@ class SupplierDashboard extends StatelessWidget {
               children: [
                 Expanded(
                   child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-            .collection('products')
-            .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
-            .snapshots(),
+                    stream: FirebaseFirestore.instance
+                        .collection('products')
+                        .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
+                        .snapshots(),
                     builder: (context, snapshot) {
                       final count = snapshot.data?.docs.length ?? 0;
                       return _buildStatCard(
-                        'My Products',
+                        context,
+                        'My Menu',
                         count.toString(),
-                        Icons.inventory,
+                        Icons.restaurant_menu,
                         Colors.teal,
+                        '/supplier-products',
                       );
                     },
                   ),
@@ -84,17 +86,19 @@ class SupplierDashboard extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-            .collection('orders')
-            .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
-            .snapshots(),
+                    stream: FirebaseFirestore.instance
+                        .collection('orders')
+                        .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
+                        .snapshots(),
                     builder: (context, snapshot) {
                       final count = snapshot.data?.docs.length ?? 0;
                       return _buildStatCard(
+                        context,
                         'My Orders',
                         count.toString(),
                         Icons.shopping_bag,
                         Colors.green,
+                        '/supplier-orders',
                       );
                     },
                   ),
@@ -106,22 +110,21 @@ class SupplierDashboard extends StatelessWidget {
               children: [
                 Expanded(
                   child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-            .collection('products')
-            .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
-            .snapshots(),
+                    stream: FirebaseFirestore.instance
+                        .collection('orders')
+                        .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
+                        .where('lateOrder', isEqualTo: true)
+                        .where('status', isEqualTo: 'LateOrderPending')
+                        .snapshots(),
                     builder: (context, snapshot) {
-                      final docs = snapshot.data?.docs ?? [];
-                      int totalStock = 0;
-                      for (final d in docs) {
-                        final stock = d.data()['stock'];
-                        if (stock is num) totalStock += stock.toInt();
-                      }
+                      final count = snapshot.data?.docs.length ?? 0;
                       return _buildStatCard(
-                        'Total Stock',
-                        totalStock.toString(),
-                        Icons.warehouse,
-                        Colors.green,
+                        context,
+                        'Pending Late Orders',
+                        count.toString(),
+                        Icons.schedule,
+                        Colors.orange,
+                        '/supplier-late-orders',
                       );
                     },
                   ),
@@ -129,10 +132,10 @@ class SupplierDashboard extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-            .collection('orders')
-            .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
-            .snapshots(),
+                    stream: FirebaseFirestore.instance
+                        .collection('orders')
+                        .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
+                        .snapshots(),
                     builder: (context, snapshot) {
                       final docs = snapshot.data?.docs ?? [];
                       double revenue = 0;
@@ -141,10 +144,12 @@ class SupplierDashboard extends StatelessWidget {
                         if (price is num) revenue += price.toDouble();
                       }
                       return _buildStatCard(
+                        context,
                         'Revenue',
                         'Rs.${revenue.toStringAsFixed(2)}',
                         Icons.attach_money,
                         Colors.teal.shade700,
+                        '/supplier-order-summary',
                       );
                     },
                   ),
@@ -162,9 +167,9 @@ class SupplierDashboard extends StatelessWidget {
                 children: [
                   _buildMenuTile(
                     context,
-                    'My Products',
-                    'View and manage your products',
-                    Icons.inventory_2,
+                    'My Menu',
+                    'View and manage your meals',
+                    Icons.restaurant_menu,
                     Colors.teal,
                     '/supplier-products',
                   ),
@@ -206,26 +211,30 @@ class SupplierDashboard extends StatelessWidget {
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(BuildContext context, String title, String value, IconData icon, Color color, String route) {
     return Card(
       elevation: 3,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Icon(icon, size: 32, color: color),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-          ],
+      child: InkWell(
+        onTap: () => Navigator.pushNamed(context, route),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Icon(icon, size: 32, color: color),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       ),
     );

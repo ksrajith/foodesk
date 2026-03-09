@@ -5,6 +5,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 const List<String> kMealTypeKeys = ['Breakfast', 'Lunch', 'Dinner'];
 List<int> get _hours24 => List.generate(24, (i) => i);
 
+/// Deadline base: 'day_before' = order by (delivery date - 1 day) at hour; 'current' = order by delivery date at hour.
+const String kDeadlineBaseDayBefore = 'day_before';
+const String kDeadlineBaseCurrent = 'current';
+const String kDeadlineBaseDefault = kDeadlineBaseDayBefore;
+
 class SupplierOrderBeforeScreen extends StatefulWidget {
   const SupplierOrderBeforeScreen({Key? key}) : super(key: key);
 
@@ -17,6 +22,12 @@ class _SupplierOrderBeforeScreenState extends State<SupplierOrderBeforeScreen> {
     'Breakfast': 8,
     'Lunch': 12,
     'Dinner': 19,
+  };
+  /// Per meal type: 'day_before' (default) or 'current'.
+  final Map<String, String> _orderBeforeDeadlineBase = {
+    'Breakfast': kDeadlineBaseDefault,
+    'Lunch': kDeadlineBaseDefault,
+    'Dinner': kDeadlineBaseDefault,
   };
   bool _loading = true;
   bool _saving = false;
@@ -48,6 +59,10 @@ class _SupplierOrderBeforeScreenState extends State<SupplierOrderBeforeScreen> {
           for (final key in kMealTypeKeys) {
             final v = data['orderBefore$key'];
             if (v is int && v >= 0 && v <= 23) _orderBeforeHours[key] = v;
+            final base = data['orderBefore${key}DeadlineBase'] as String?;
+            if (base == kDeadlineBaseCurrent || base == kDeadlineBaseDayBefore) {
+              _orderBeforeDeadlineBase[key] = base!;
+            }
           }
           _loading = false;
         });
@@ -67,10 +82,13 @@ class _SupplierOrderBeforeScreenState extends State<SupplierOrderBeforeScreen> {
     if (uid == null) return;
     setState(() => _saving = true);
     try {
-      final data = <String, int>{
+      final data = <String, dynamic>{
         'orderBeforeBreakfast': _orderBeforeHours['Breakfast']!,
         'orderBeforeLunch': _orderBeforeHours['Lunch']!,
         'orderBeforeDinner': _orderBeforeHours['Dinner']!,
+        'orderBeforeBreakfastDeadlineBase': _orderBeforeDeadlineBase['Breakfast']!,
+        'orderBeforeLunchDeadlineBase': _orderBeforeDeadlineBase['Lunch']!,
+        'orderBeforeDinnerDeadlineBase': _orderBeforeDeadlineBase['Dinner']!,
       };
       await FirebaseFirestore.instance
           .collection('vendor_config')
@@ -108,7 +126,7 @@ class _SupplierOrderBeforeScreenState extends State<SupplierOrderBeforeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        'Set the latest time (24h) customers can place an order for each meal type. Countdown resets daily at 00:00.',
+                        'Set the latest time (24h) and deadline base for each meal type. "Day Before" = order by previous day at time; "Current Date" = order by same day at time.',
                         style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
                       ),
                       const SizedBox(height: 24),
@@ -126,6 +144,49 @@ class _SupplierOrderBeforeScreenState extends State<SupplierOrderBeforeScreen> {
                                 ),
                               ),
                               const SizedBox(height: 8),
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Text(
+                                  'Deadline base',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey.shade400),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: _orderBeforeDeadlineBase[mealType]!,
+                                    isExpanded: true,
+                                    items: const [
+                                      DropdownMenuItem(
+                                        value: kDeadlineBaseDayBefore,
+                                        child: Text('Day Before Current Date'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: kDeadlineBaseCurrent,
+                                        child: Text('Current Date'),
+                                      ),
+                                    ],
+                                    onChanged: (value) {
+                                      if (value != null) {
+                                        setState(() => _orderBeforeDeadlineBase[mealType] = value);
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Text(
+                                  'Time (24h)',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                                ),
+                              ),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                                 decoration: BoxDecoration(

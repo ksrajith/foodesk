@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/date_time_utils.dart';
 import '../utils/order_utils.dart';
 import '../utils/pool_utils.dart';
+import '../utils/app_settings.dart';
 
 /// Order item detail screen. Shows Back, Move to Pool, Cancel Order, Complete.
 /// Deadline-based: after deadline show Move to Pool only; before deadline show Cancel only.
@@ -82,85 +83,104 @@ class CustomerOrderDetailScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Card(
-              elevation: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      productName,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 12),
-                    _detailRow('Meal type', mealType),
-                    _detailRow('Quantity', '$qty'),
-                    _detailRow('Order date', orderStr),
-                    _detailRow('Delivery / allocation date', deliveryStr),
-                    _detailRow('Total', 'Rs.${totalPrice.toStringAsFixed(2)}'),
-                    const SizedBox(height: 12),
-                    Row(
+      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: appSettingsStream(),
+        builder: (context, settingsSnap) {
+          final showPrices = settingsSnap.data?.data()?['showMealPricesToCustomers'] as bool? ?? false;
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Status: ', style: TextStyle(fontWeight: FontWeight.w600)),
                         Text(
-                          _statusDisplay(status),
-                          style: TextStyle(
-                            color: isPending
-                                ? Colors.orange.shade700
-                                : isCompleted
-                                    ? Colors.green.shade700
-                                    : Colors.grey.shade700,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          productName,
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 12),
+                        _detailRow('Meal type', mealType),
+                        _detailRow('Quantity', '$qty'),
+                        _detailRow('Order date', orderStr),
+                        _detailRow('Delivery / allocation date', deliveryStr),
+                        _detailRow(
+                          'Total',
+                          showPrices ? 'Rs.${totalPrice.toStringAsFixed(2)}' : 'Price hidden',
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            const Text('Status: ', style: TextStyle(fontWeight: FontWeight.w600)),
+                            Text(
+                              _statusDisplay(status),
+                              style: TextStyle(
+                                color: isPending
+                                    ? Colors.orange.shade700
+                                    : isCompleted
+                                        ? Colors.green.shade700
+                                        : Colors.grey.shade700,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
             // Buttons: Back is in AppBar
             if (isPending) ...[
               FutureBuilder<bool>(
                 future: isOrderPastDeadline(order),
                 builder: (context, snap) {
-                  final deadlineClosed = snap.data ?? false;
+                  final deadlinePassed = snap.data ?? false;
+                  // Cancel: enabled only when deadline has NOT passed.
+                  // Move to Pool: enabled only when deadline HAS passed; otherwise visible but disabled.
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (deadlineClosed)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: FilledButton.icon(
-                            onPressed: () => _confirmAndMoveToPool(context, orderId, order, qty, pricePerUnit),
-                            icon: const Icon(Icons.move_up),
-                            label: const Text('Move to Pool'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: Colors.orange.shade700,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: OutlinedButton.icon(
+                          onPressed: deadlinePassed ? null : () => _confirmAndCancelOrder(context, orderId, order),
+                          icon: Icon(
+                            Icons.cancel_outlined,
+                            color: deadlinePassed ? Colors.grey : Colors.red.shade700,
+                          ),
+                          label: Text(
+                            'Cancel Order',
+                            style: TextStyle(
+                              color: deadlinePassed ? Colors.grey : Colors.red.shade700,
                             ),
                           ),
-                        )
-                      else
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: OutlinedButton.icon(
-                            onPressed: () => _confirmAndCancelOrder(context, orderId, order),
-                            icon: Icon(Icons.cancel_outlined, color: Colors.red.shade700),
-                            label: Text('Cancel Order', style: TextStyle(color: Colors.red.shade700)),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: Colors.red.shade700),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(
+                              color: deadlinePassed ? Colors.grey : Colors.red.shade700,
                             ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                         ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: FilledButton.icon(
+                          onPressed: deadlinePassed
+                              ? () => _confirmAndMoveToPool(context, orderId, order, qty, pricePerUnit)
+                              : null,
+                          icon: const Icon(Icons.move_up),
+                          label: const Text('Move to Pool'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.orange.shade700,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
                       FilledButton.icon(
                         onPressed: () => _markComplete(context, orderId),
                         icon: const Icon(Icons.check_circle),
@@ -195,8 +215,10 @@ class CustomerOrderDetailScreen extends StatelessWidget {
                   ),
                 ),
             ],
-          ],
-        ),
+            ],
+          ),
+        );
+        },
       ),
     );
   }

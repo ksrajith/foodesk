@@ -167,20 +167,26 @@ class AdminPendingRegistrations extends StatelessWidget {
       });
       if (!dialogContext.mounted) return;
       Navigator.pop(dialogContext);
-      if (!screenContext.mounted) return;
-      ScaffoldMessenger.of(screenContext).showSnackBar(
-        SnackBar(
-          content: Text(approve ? 'Registration approved. User role: $role.' : 'Registration rejected.'),
-          backgroundColor: approve ? Colors.green : Colors.orange,
-        ),
-      );
+      // Defer SnackBar to next frame to avoid _dependents.isEmpty assertion when
+      // the stream updates and the list dialog rebuilds (e.g. after approving an Admin request).
+      final message = approve ? 'Registration approved. User role: $role.' : 'Registration rejected.';
+      final color = approve ? Colors.green : Colors.orange;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (screenContext.mounted && ScaffoldMessenger.maybeOf(screenContext) != null) {
+          ScaffoldMessenger.of(screenContext).showSnackBar(
+            SnackBar(content: Text(message), backgroundColor: color),
+          );
+        }
+      });
     } catch (e) {
       if (dialogContext.mounted) Navigator.pop(dialogContext);
-      if (screenContext.mounted) {
-        ScaffoldMessenger.of(screenContext).showSnackBar(
-          SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
-        );
-      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (screenContext.mounted && ScaffoldMessenger.maybeOf(screenContext) != null) {
+          ScaffoldMessenger.of(screenContext).showSnackBar(
+            SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
+          );
+        }
+      });
     }
   }
 

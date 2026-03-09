@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../utils/date_time_utils.dart';
+import '../utils/fcm_utils.dart';
 import '../utils/order_utils.dart';
 import '../utils/pool_utils.dart';
+import '../utils/app_settings.dart';
 import 'place_meal_screen.dart';
 import 'pool_screen.dart';
 // AppData removed: use FirebaseAuth/Firestore for user data
@@ -17,6 +20,43 @@ class CustomerDashboard extends StatefulWidget {
 
 class _CustomerDashboardState extends State<CustomerDashboard> {
   @override
+  void initState() {
+    super.initState();
+    refreshFcmTokenAndSave();
+    Future<void>.delayed(const Duration(seconds: 3), () => refreshFcmTokenAndSave());
+    Future<void>.delayed(const Duration(seconds: 8), () => refreshFcmTokenAndSave());
+  }
+
+  Future<void> _sendTestNotification() async {
+    final scaffold = ScaffoldMessenger.of(context);
+    try {
+      // Save this device's token first so the server sends to this phone (not another device)
+      await refreshFcmTokenAndSave();
+      if (!mounted) return;
+      scaffold.showSnackBar(
+        const SnackBar(
+          content: Text('Token updated. Sending test… (may take 1–2 min if server is cold). Stay on this screen or put app in background.'),
+          duration: Duration(seconds: 5),
+        ),
+      );
+      final callable = FirebaseFunctions.instance.httpsCallable('sendTestNotification');
+      await callable.call();
+      if (!mounted) return;
+      scaffold.showSnackBar(
+        const SnackBar(content: Text('Test notification sent. Check your device (or the banner above if app was open).')),
+      );
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+      scaffold.showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Notification test failed.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      scaffold.showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -24,6 +64,11 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
         backgroundColor: Colors.teal.shade600,
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_active),
+            tooltip: 'Test notification',
+            onPressed: _sendTestNotification,
+          ),
           IconButton(
             icon: const Icon(Icons.history),
             onPressed: () => Navigator.pushNamed(context, '/customer-order-history'),
@@ -38,11 +83,17 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
           ),
         ],
       ),
-      body: _buildHomeTiles(context),
+      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: appSettingsStream(),
+        builder: (context, settingsSnap) {
+          final showPrices = settingsSnap.data?.data()?['showMealPricesToCustomers'] as bool? ?? false;
+          return _buildHomeTiles(context, showPrices);
+        },
+      ),
     );
   }
 
-  Widget _buildHomeTiles(BuildContext context) {
+  Widget _buildHomeTiles(BuildContext context, bool showPrices) {
     final user = FirebaseAuth.instance.currentUser;
     return Column(
       children: [
@@ -255,7 +306,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
     );
   }
 
-  void _showMyOrders(BuildContext context) {
+  void _showMyOrders(BuildContext context, bool showPrices) {
     final firebaseUser = FirebaseAuth.instance.currentUser;
 
     showDialog(
@@ -418,7 +469,9 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                               },
                             ),
                           Text(
-                            'Rs.${(order['totalPrice'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
+                            showPrices
+                                ? 'Rs.${(order['totalPrice'] as num?)?.toStringAsFixed(2) ?? '0.00'}'
+                                : 'Price hidden',
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ],

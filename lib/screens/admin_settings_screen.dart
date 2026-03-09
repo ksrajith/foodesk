@@ -89,7 +89,7 @@ class _MealDisplaySettingsTab extends StatelessWidget {
         final showPrices = snapshot.hasData &&
             snapshot.data!.exists &&
             snapshot.data!.data() != null &&
-            (snapshot.data!.data()!['showMealPricesToCustomers'] as bool? ?? true);
+            (snapshot.data!.data()!['showMealPricesToCustomers'] as bool? ?? false);
 
         return Padding(
           padding: const EdgeInsets.all(16),

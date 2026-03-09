@@ -136,7 +136,7 @@ class AdminDashboard extends StatelessWidget {
                         count.toString(),
                         Icons.shopping_cart,
                         Colors.green,
-                        onTap: () => _showTotalOrdersDialog(context),
+                        onTap: () => Navigator.pushNamed(context, '/admin-total-orders'),
                       );
                     },
                   ),
@@ -630,7 +630,8 @@ class AdminDashboard extends StatelessWidget {
                       subtitle: Text(name),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () {
-                        AdminPendingRegistrations.showApprovalDialog(context, doc.reference.id, data);
+                        // Use ctx (AlertDialog) so SnackBar uses a stable context when stream rebuilds after approval.
+                        AdminPendingRegistrations.showApprovalDialog(ctx, doc.reference.id, data);
                       },
                     );
                   },

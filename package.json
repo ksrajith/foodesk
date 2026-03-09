@@ -1,0 +1,11 @@
+{
+  "name": "food_desk",
+  "private": true,
+  "description": "Firebase deploy from project root (no global firebase-tools needed)",
+  "devDependencies": {
+    "firebase-tools": "^13.0.0"
+  },
+  "scripts": {
+    "deploy:functions": "firebase deploy --only functions"
+  }
+}

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/fcm_utils.dart';
 // AppData removed. User profile stored in Firestore; no app-level cache.
 
 class LoginRegisterScreen extends StatefulWidget {
@@ -165,6 +166,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
       }
 
       if (!mounted) return;
+      await refreshFcmTokenAndSave();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Welcome ${profile['name']}!'),

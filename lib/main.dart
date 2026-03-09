@@ -1,5 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'utils/fcm_utils.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_register_screen.dart';
 import 'screens/forgot_password_screen.dart';
@@ -9,6 +13,7 @@ import 'screens/admin_approved_registrations_screen.dart';
 import 'screens/admin_settings_screen.dart';
 import 'screens/admin_product_list.dart';
 import 'screens/admin_order_list.dart';
+import 'screens/admin_total_orders_screen.dart';
 import 'screens/supplier_dashboard.dart';
 import 'screens/supplier_product_list.dart';
 import 'screens/supplier_add_edit_meal_screen.dart';
@@ -22,6 +27,14 @@ import 'screens/pool_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Catch Flutter framework errors so the app doesn't close silently (e.g. on device)
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    debugPrint('FlutterError: ${details.exception}');
+    debugPrint(details.stack?.toString() ?? '');
+  };
+
   String? initError;
   try {
     await Firebase.initializeApp();
@@ -30,7 +43,34 @@ Future<void> main() async {
     debugPrint('Firebase.initializeApp error: $e');
     debugPrint(st.toString());
   }
-  runApp(MyApp(initError: initError));
+  if (initError == null) {
+    try {
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      await initLocalNotifications();
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        final title = message.notification?.title ?? 'FoodDesk';
+        final body = message.notification?.body ?? '';
+        if (title.isNotEmpty || body.isNotEmpty) {
+          showForegroundNotification(title: title, body: body);
+        }
+      });
+      listenTokenRefreshAndSave();
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        refreshFcmTokenAndSave();
+      }
+    } catch (e, st) {
+      debugPrint('FCM/setup error: $e');
+      debugPrint(st.toString());
+      // Don't block app start
+    }
+  }
+  runZonedGuarded(() {
+    runApp(MyApp(initError: initError));
+  }, (error, stack) {
+    debugPrint('Uncaught error: $error');
+    debugPrint(stack.toString());
+  });
 }
 
 class MyApp extends StatelessWidget {
@@ -85,6 +125,7 @@ class MyApp extends StatelessWidget {
         '/admin-settings': (context) => const AdminSettingsScreen(),
         '/admin-products': (context) => const AdminProductList(),
         '/admin-orders': (context) => const AdminOrderList(),
+        '/admin-total-orders': (context) => const AdminTotalOrdersScreen(),
         '/supplier-dashboard': (context) => const SupplierDashboard(),
         '/supplier-products': (context) => const SupplierProductList(),
         '/supplier-add-edit-meal': (context) => const SupplierAddEditMealScreen(),
