@@ -43,3 +43,16 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Node (root and functions)
+node_modules/
+
+# Cursor / IDE
+.cursor/
+
+# Local / generated
+*.log
+logcat.txt
+.env
+.env.*
+!.env.example
