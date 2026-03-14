@@ -50,6 +50,9 @@ node_modules/
 # Cursor / IDE
 .cursor/
 
+# Local docs (kept locally, not committed)
+docs/
+
 # Local / generated
 *.log
 logcat.txt
