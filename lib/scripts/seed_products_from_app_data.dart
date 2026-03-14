@@ -65,7 +65,7 @@ final List<Map<String, dynamic>> _productsFromAppData = [
     'vendorId': '2',
     'vendorName': 'John Vendor',
     'stock': 20,
-    'image': 'assets/ProductImages/Fried rice set menu chiken.png',
+    'image': '',
   },
   {
     'id': '2',
@@ -75,7 +75,7 @@ final List<Map<String, dynamic>> _productsFromAppData = [
     'vendorId': '2',
     'vendorName': 'John Vendor',
     'stock': 18,
-    'image': 'assets/ProductImages/Fried rice set menu fish.png',
+    'image': '',
   },
   {
     'id': '3',
@@ -85,7 +85,7 @@ final List<Map<String, dynamic>> _productsFromAppData = [
     'vendorId': '2',
     'vendorName': 'John Vendor',
     'stock': 25,
-    'image': 'assets/ProductImages/Fried rice set menu vegitable.png',
+    'image': '',
   },
   {
     'id': '4',
@@ -95,7 +95,7 @@ final List<Map<String, dynamic>> _productsFromAppData = [
     'vendorId': '2',
     'vendorName': 'John Vendor',
     'stock': 22,
-    'image': 'assets/ProductImages/Rice and curry chicken.png',
+    'image': '',
   },
   {
     'id': '5',
@@ -105,7 +105,7 @@ final List<Map<String, dynamic>> _productsFromAppData = [
     'vendorId': '2',
     'vendorName': 'John Vendor',
     'stock': 15,
-    'image': 'assets/ProductImages/Rice and curry fish.png',
+    'image': '',
   },
   {
     'id': '6',
@@ -115,7 +115,7 @@ final List<Map<String, dynamic>> _productsFromAppData = [
     'vendorId': '2',
     'vendorName': 'John Vendor',
     'stock': 30,
-    'image': 'assets/ProductImages/Rice and curry vegitable.png',
+    'image': '',
   },
   {
     'id': '7',
@@ -125,7 +125,7 @@ final List<Map<String, dynamic>> _productsFromAppData = [
     'vendorId': '2',
     'vendorName': 'John Vendor',
     'stock': 28,
-    'image': 'assets/ProductImages/Rice and curry egg.png',
+    'image': '',
   },
 ];
 

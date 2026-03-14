@@ -288,7 +288,7 @@ class _SupplierAddEditMealScreenState extends State<SupplierAddEditMealScreen> {
               decoration: InputDecoration(
                 labelText: 'Price (Rs.) *',
                 hintText: 'e.g. 450',
-                prefixIcon: const Icon(Icons.attach_money),
+                prefixIcon: const Icon(Icons.currency_rupee),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
                 fillColor: Colors.grey.shade50,

@@ -112,7 +112,7 @@ Future<void> main() async {
       'vendorId': '2',
       'vendorName': 'John Vendor',
       'stock': 20,
-      'image': 'assets/ProductImages/Fried rice set menu chiken.png',
+      'image': '',
     },
     {
       'id': '2',
@@ -122,7 +122,7 @@ Future<void> main() async {
       'vendorId': '2',
       'vendorName': 'John Vendor',
       'stock': 18,
-      'image': 'assets/ProductImages/Fried rice set menu fish.png',
+      'image': '',
     },
     {
       'id': '3',
@@ -142,7 +142,7 @@ Future<void> main() async {
       'vendorId': '2',
       'vendorName': 'John Vendor',
       'stock': 22,
-      'image': 'assets/ProductImages/Rice and curry chicken.png',
+      'image': '',
     },
     {
       'id': '5',
@@ -152,7 +152,7 @@ Future<void> main() async {
       'vendorId': '2',
       'vendorName': 'John Vendor',
       'stock': 15,
-      'image': 'assets/ProductImages/Rice and curry fish.png',
+      'image': '',
     },
     {
       'id': '6',
@@ -162,7 +162,7 @@ Future<void> main() async {
       'vendorId': '2',
       'vendorName': 'John Vendor',
       'stock': 30,
-      'image': 'assets/ProductImages/Rice and curry vegitable.png',
+      'image': '',
     },
     {
       'id': '7',
@@ -172,7 +172,7 @@ Future<void> main() async {
       'vendorId': '2',
       'vendorName': 'John Vendor',
       'stock': 28,
-      'image': 'assets/ProductImages/Rice and curry egg.png',
+      'image': '',
     },
   ];
   final prodCol = FirebaseFirestore.instance.collection('products');

@@ -68,7 +68,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Create Account'), findsOneWidget);
 
-      await tester.tap(find.text('Login'));
+      final loginLink = find.ancestor(
+        of: find.text('Login'),
+        matching: find.byType(TextButton),
+      );
+      await tester.ensureVisible(loginLink.first);
+      await tester.tap(loginLink.first);
       await tester.pumpAndSettle();
 
       expect(find.text('Welcome Back!'), findsOneWidget);
@@ -130,14 +135,16 @@ void main() {
 
       await tester.enterText(find.byType(TextFormField).at(0), '');
       await tester.enterText(find.byType(TextFormField).at(1), 'test@example.com');
-      await tester.enterText(find.byType(TextFormField).at(2), 'password123');
-      await tester.tap(find.text('Register'));
+      await tester.enterText(find.byType(TextFormField).at(2), 'Password1');
+      final registerBtn = find.widgetWithText(ElevatedButton, 'Register');
+      await tester.ensureVisible(registerBtn);
+      await tester.tap(registerBtn);
       await tester.pumpAndSettle();
 
       expect(find.text('Please enter your name'), findsOneWidget);
     });
 
-    testWidgets('Register mode: password less than 6 characters shows error',
+    testWidgets('Register mode: password less than 8 characters shows error',
         (WidgetTester tester) async {
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
@@ -146,11 +153,31 @@ void main() {
 
       await tester.enterText(find.byType(TextFormField).at(0), 'Test User');
       await tester.enterText(find.byType(TextFormField).at(1), 'test@example.com');
-      await tester.enterText(find.byType(TextFormField).at(2), '12345');
+      await tester.enterText(find.byType(TextFormField).at(2), 'Abc1234');
+      final registerBtn = find.widgetWithText(ElevatedButton, 'Register');
+      await tester.ensureVisible(registerBtn);
+      await tester.tap(registerBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Password must be at least 8 characters'), findsOneWidget);
+    });
+
+    testWidgets('Register mode: password without uppercase lowercase and numbers shows error',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Register'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Password must be at least 6 characters'), findsOneWidget);
+      await tester.enterText(find.byType(TextFormField).at(0), 'Test User');
+      await tester.enterText(find.byType(TextFormField).at(1), 'test@example.com');
+      await tester.enterText(find.byType(TextFormField).at(2), 'abcdefgh');
+      final registerBtn = find.widgetWithText(ElevatedButton, 'Register');
+      await tester.ensureVisible(registerBtn);
+      await tester.tap(registerBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Use uppercase, lowercase and numbers'), findsOneWidget);
     });
 
     testWidgets('Register mode: role dropdown has Customer, Supplier, Admin',
@@ -237,6 +264,25 @@ void main() {
       expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
     });
 
+    testWidgets('Register mode shows password policy helper text', (WidgetTester tester) async {
+      await openSignUpPage(tester);
+      expect(find.text('8–12 characters; use uppercase, lowercase and numbers'), findsOneWidget);
+    });
+
+    testWidgets('Register mode has password policy info icon', (WidgetTester tester) async {
+      await openSignUpPage(tester);
+      expect(find.byIcon(Icons.info_outline), findsOneWidget);
+    });
+
+    testWidgets('Tapping password policy info icon opens dialog', (WidgetTester tester) async {
+      await openSignUpPage(tester);
+      await tester.tap(find.byIcon(Icons.info_outline));
+      await tester.pumpAndSettle();
+      expect(find.text('Password policy'), findsOneWidget);
+      expect(find.textContaining('8–12 characters'), findsWidgets);
+      expect(find.text('OK'), findsOneWidget);
+    });
+
     testWidgets('shows Already have an account? Login link', (WidgetTester tester) async {
       await openSignUpPage(tester);
       expect(find.text('Already have an account? '), findsOneWidget);
@@ -273,8 +319,10 @@ void main() {
       await openSignUpPage(tester);
       await tester.enterText(find.byType(TextFormField).at(0), '');
       await tester.enterText(find.byType(TextFormField).at(1), 'user@test.com');
-      await tester.enterText(find.byType(TextFormField).at(2), 'password1');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
+      await tester.enterText(find.byType(TextFormField).at(2), 'Password1');
+      final registerBtn = find.widgetWithText(ElevatedButton, 'Register');
+      await tester.ensureVisible(registerBtn);
+      await tester.tap(registerBtn);
       await tester.pumpAndSettle();
       expect(find.text('Please enter your name'), findsOneWidget);
     });
@@ -283,8 +331,10 @@ void main() {
       await openSignUpPage(tester);
       await tester.enterText(find.byType(TextFormField).at(0), 'Test User');
       await tester.enterText(find.byType(TextFormField).at(1), '');
-      await tester.enterText(find.byType(TextFormField).at(2), 'password1');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
+      await tester.enterText(find.byType(TextFormField).at(2), 'Password1');
+      final registerBtn = find.widgetWithText(ElevatedButton, 'Register');
+      await tester.ensureVisible(registerBtn);
+      await tester.tap(registerBtn);
       await tester.pumpAndSettle();
       expect(find.text('Please enter your email'), findsOneWidget);
     });
@@ -293,8 +343,10 @@ void main() {
       await openSignUpPage(tester);
       await tester.enterText(find.byType(TextFormField).at(0), 'Test User');
       await tester.enterText(find.byType(TextFormField).at(1), 'invalid-email');
-      await tester.enterText(find.byType(TextFormField).at(2), 'password1');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
+      await tester.enterText(find.byType(TextFormField).at(2), 'Password1');
+      final registerBtn = find.widgetWithText(ElevatedButton, 'Register');
+      await tester.ensureVisible(registerBtn);
+      await tester.tap(registerBtn);
       await tester.pumpAndSettle();
       expect(find.text('Please enter a valid email'), findsOneWidget);
     });
@@ -304,30 +356,50 @@ void main() {
       await tester.enterText(find.byType(TextFormField).at(0), 'Test User');
       await tester.enterText(find.byType(TextFormField).at(1), 'user@test.com');
       await tester.enterText(find.byType(TextFormField).at(2), '');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
+      final registerBtn = find.widgetWithText(ElevatedButton, 'Register');
+      await tester.ensureVisible(registerBtn);
+      await tester.tap(registerBtn);
       await tester.pumpAndSettle();
       expect(find.text('Please enter your password'), findsOneWidget);
     });
 
-    testWidgets('sign up validation: password under 6 characters shows error',
+    testWidgets('sign up validation: password under 8 characters shows error',
         (WidgetTester tester) async {
       await openSignUpPage(tester);
       await tester.enterText(find.byType(TextFormField).at(0), 'Test User');
       await tester.enterText(find.byType(TextFormField).at(1), 'user@test.com');
-      await tester.enterText(find.byType(TextFormField).at(2), '12345');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
+      await tester.enterText(find.byType(TextFormField).at(2), 'Abc1234');
+      final registerBtn = find.widgetWithText(ElevatedButton, 'Register');
+      await tester.ensureVisible(registerBtn);
+      await tester.tap(registerBtn);
       await tester.pumpAndSettle();
-      expect(find.text('Password must be at least 6 characters'), findsOneWidget);
+      expect(find.text('Password must be at least 8 characters'), findsOneWidget);
     });
 
-    testWidgets('sign up validation: valid 6-char password passes', (WidgetTester tester) async {
+    testWidgets('sign up validation: password without character variety shows error',
+        (WidgetTester tester) async {
       await openSignUpPage(tester);
       await tester.enterText(find.byType(TextFormField).at(0), 'Test User');
       await tester.enterText(find.byType(TextFormField).at(1), 'user@test.com');
-      await tester.enterText(find.byType(TextFormField).at(2), '123456');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
+      await tester.enterText(find.byType(TextFormField).at(2), 'abcdefgh');
+      final registerBtn = find.widgetWithText(ElevatedButton, 'Register');
+      await tester.ensureVisible(registerBtn);
+      await tester.tap(registerBtn);
+      await tester.pumpAndSettle();
+      expect(find.text('Use uppercase, lowercase and numbers'), findsOneWidget);
+    });
+
+    testWidgets('sign up validation: valid policy-compliant password passes', (WidgetTester tester) async {
+      await openSignUpPage(tester);
+      await tester.enterText(find.byType(TextFormField).at(0), 'Test User');
+      await tester.enterText(find.byType(TextFormField).at(1), 'user@test.com');
+      await tester.enterText(find.byType(TextFormField).at(2), 'Password1');
+      final registerBtn = find.widgetWithText(ElevatedButton, 'Register');
+      await tester.ensureVisible(registerBtn);
+      await tester.tap(registerBtn);
       await tester.pump();
-      expect(find.text('Password must be at least 6 characters'), findsNothing);
+      expect(find.text('Password must be at least 8 characters'), findsNothing);
+      expect(find.text('Use uppercase, lowercase and numbers'), findsNothing);
     });
 
     testWidgets('role dropdown defaults to Customer', (WidgetTester tester) async {

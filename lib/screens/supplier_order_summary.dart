@@ -343,7 +343,7 @@ class _SupplierOrderSummaryState extends State<SupplierOrderSummary> {
                   child: _buildStatItem(
                     'Revenue',
                     'Rs.${totalRevenue.toStringAsFixed(0)}',
-                    Icons.attach_money,
+                    Icons.currency_rupee,
                     Colors.green,
                   ),
                 ),

@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../core/app_constants.dart';
+import '../models/product.dart';
+import '../repositories/product_repository.dart';
 import '../utils/admin_report_pdf.dart';
 import 'supplier_add_edit_meal_screen.dart';
 
@@ -16,42 +18,40 @@ class SupplierProductList extends StatefulWidget {
 }
 
 class _SupplierProductListState extends State<SupplierProductList> {
-  /// Optional filter: null = All, else filter by this meal type.
+  final ProductRepository _productRepository = ProductRepository();
+
   String? _selectedMealTypeFilter;
-  /// Status filter: All, Available (active), Unavailable (inactive). Default All.
   String _statusFilter = 'All';
-  List<Map<String, dynamic>> _lastProducts = [];
+  List<Product> _lastProducts = [];
 
-  bool _isActive(Map<String, dynamic> product) => product['active'] != false;
-
-  bool _productMatchesMealTypeFilter(Map<String, dynamic> product) {
+  bool _productMatchesMealTypeFilter(Product product) {
     if (_selectedMealTypeFilter == null) return true;
-    final types = product['mealTypes'];
-    if (types == null || types is! List) return false;
-    return (types as List).contains(_selectedMealTypeFilter);
+    return product.mealTypes.contains(_selectedMealTypeFilter);
   }
 
-  bool _productMatchesStatusFilter(Map<String, dynamic> product) {
+  bool _productMatchesStatusFilter(Product product) {
     if (_statusFilter == 'All') return true;
-    if (_statusFilter == 'Available') return _isActive(product);
-    return !_isActive(product);
+    if (_statusFilter == 'Available') return product.isActive;
+    return !product.isActive;
   }
 
-  /// Sort: active first, then inactive (inactive at bottom).
-  List<Map<String, dynamic>> _sortActiveFirst(List<Map<String, dynamic>> list) {
-    final copy = List<Map<String, dynamic>>.from(list);
+  List<Product> _sortActiveFirst(List<Product> list) {
+    final copy = List<Product>.from(list);
     copy.sort((a, b) {
-      final aa = _isActive(a);
-      final bb = _isActive(b);
-      if (aa != bb) return aa ? -1 : 1;
-      return ((a['name'] ?? '') as String).compareTo((b['name'] ?? '') as String);
+      if (a.isActive != b.isActive) return a.isActive ? -1 : 1;
+      return a.name.compareTo(b.name);
     });
     return copy;
   }
 
+  /// Converts [Product] list to list of maps for PDF (existing util expects Map).
+  List<Map<String, dynamic>> _productsToMaps(List<Product> products) {
+    return products.map((p) => {'id': p.id, ...p.toMap()}).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final firebaseUser = FirebaseAuth.instance.currentUser;
+    final vendorId = FirebaseAuth.instance.currentUser?.uid ?? '';
 
     return Scaffold(
       appBar: AppBar(
@@ -65,7 +65,7 @@ class _SupplierProductListState extends State<SupplierProductList> {
             tooltip: 'Print',
             onPressed: () async {
               await printMyMealsPdf(
-                products: _lastProducts,
+                products: _productsToMaps(_lastProducts),
                 mealTypeFilter: _selectedMealTypeFilter,
                 statusFilter: _statusFilter == 'All' ? null : _statusFilter,
               );
@@ -98,11 +98,8 @@ class _SupplierProductListState extends State<SupplierProductList> {
         children: [
           _buildMealTypeFilter(),
           Expanded(
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance
-                  .collection('products')
-                  .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
-                  .snapshots(),
+            child: StreamBuilder<List<Product>>(
+              stream: _productRepository.streamProductsByVendor(vendorId),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -110,22 +107,20 @@ class _SupplierProductListState extends State<SupplierProductList> {
                 if (snapshot.hasError) {
                   return Center(child: Text('Error: ${snapshot.error}'));
                 }
-                final docs = snapshot.data?.docs ?? [];
-                final allProducts = docs.map((d) => {'id': d.id, ...d.data()}).toList();
+                final allProducts = snapshot.data ?? [];
                 var supplierProducts = allProducts
                     .where(_productMatchesMealTypeFilter)
                     .where(_productMatchesStatusFilter)
                     .toList();
                 supplierProducts = _sortActiveFirst(supplierProducts);
-                // Only update state when the list actually changed to avoid frequent refresh
-                final ids = supplierProducts.map((p) => p['id'] as String?).toList();
-                final prevIds = _lastProducts.map((p) => p['id'] as String?).toList();
+                final ids = supplierProducts.map((p) => p.id).toList();
+                final prevIds = _lastProducts.map((p) => p.id).toList();
                 if (ids.length != prevIds.length || !listEquals(ids, prevIds)) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (mounted) setState(() => _lastProducts = supplierProducts);
                   });
                 }
-                if (docs.isEmpty) {
+                if (allProducts.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -160,245 +155,28 @@ class _SupplierProductListState extends State<SupplierProductList> {
                   );
                 }
                 return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-            itemCount: supplierProducts.length,
-            itemBuilder: (context, index) {
-              final product = supplierProducts[index];
-              return Card(
-                  elevation: 3,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () async {
-                      final updated = await Navigator.of(context).push<bool>(
-                        MaterialPageRoute(
-                          builder: (_) => SupplierAddEditMealScreen(product: product),
-                        ),
-                      );
-                      if (updated == true && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Meal updated.'), backgroundColor: Colors.green),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                  itemCount: supplierProducts.length,
+                  itemBuilder: (context, index) {
+                    final product = supplierProducts[index];
+                    return _ProductCard(
+                      product: product,
+                      onTap: () async {
+                        final productMap = {'id': product.id, ...product.toMap()};
+                        final updated = await Navigator.of(context).push<bool>(
+                          MaterialPageRoute(
+                            builder: (_) => SupplierAddEditMealScreen(product: productMap),
+                          ),
                         );
-                      }
-                    },
-                    child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 90,
-                          height: 90,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.teal.shade200,
-                              width: 2,
-                            ),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: product['image'] != null && product['image'].toString().startsWith('assets/')
-                                ? Image.asset(
-                                    product['image'],
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Center(
-                                        child: Icon(
-                                          Icons.fastfood,
-                                          size: 45,
-                                          color: Colors.teal.shade300,
-                                        ),
-                                      );
-                                    },
-                                  )
-                                : Center(
-                                    child: Text(
-                                      product['image'] ?? '📦',
-                                      style: const TextStyle(fontSize: 45),
-                                    ),
-                                  ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      product['name'] ?? 'Unknown Product',
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: _isActive(product) ? Colors.green.shade50 : Colors.orange.shade50,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: _isActive(product) ? Colors.green.shade300 : Colors.orange.shade300,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      _isActive(product) ? 'Available' : 'Unavailable',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: _isActive(product) ? Colors.green.shade700 : Colors.orange.shade700,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                product['description'] ?? 'No description available',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey.shade600,
-                                  height: 1.3,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              if (product['mealTypes'] is List && (product['mealTypes'] as List).isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Wrap(
-                                  spacing: 6,
-                                  children: (product['mealTypes'] as List)
-                                      .whereType<String>()
-                                      .map((t) => Chip(
-                                            label: Text(t, style: const TextStyle(fontSize: 11)),
-                                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                            padding: EdgeInsets.zero,
-                                            visualDensity: VisualDensity.compact,
-                                          ))
-                                      .toList(),
-                                ),
-                              ],
-                              const SizedBox(height: 12),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.shade50,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: Colors.green.shade200,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.tag,
-                                      size: 16,
-                                      color: Colors.green.shade700,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'ID: ${product['id'] ?? 'N/A'}',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.green.shade700,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Price',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.grey.shade600,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Rs.${product['price']?.toStringAsFixed(2) ?? '0.00'}',
-                                        style: TextStyle(
-                                          fontSize: 22,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.teal.shade700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: (product['stock'] ?? 0) > 0
-                                          ? Colors.green.shade50
-                                          : Colors.red.shade50,
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color: (product['stock'] ?? 0) > 0
-                                            ? Colors.green.shade300
-                                            : Colors.red.shade300,
-                                        width: 1.5,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.inventory_2,
-                                          size: 18,
-                                          color: (product['stock'] ?? 0) > 0
-                                              ? Colors.green.shade700
-                                              : Colors.red.shade700,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'Stock: ${product['stock'] ?? 0}',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.bold,
-                                            color: (product['stock'] ?? 0) > 0
-                                                ? Colors.green.shade700
-                                                : Colors.red.shade700,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                        if (updated == true && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Meal updated.'), backgroundColor: Colors.green),
+                          );
+                        }
+                      },
+                    );
+                  },
                 );
-            },
-          );
               },
             ),
           ),
@@ -446,4 +224,182 @@ class _SupplierProductListState extends State<SupplierProductList> {
       ),
     );
   }
+}
+
+class _ProductCard extends StatelessWidget {
+  const _ProductCard({required this.product, required this.onTap});
+
+  final Product product;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = product.image;
+    final isAsset = imageUrl != null && imageUrl.startsWith('assets/');
+
+    return Card(
+      elevation: 3,
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 90,
+                height: 90,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.teal.shade200, width: 2),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: isAsset && imageUrl != null
+                      ? Image.asset(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _placeholderIcon(),
+                        )
+                      : (imageUrl != null && imageUrl.startsWith('http'))
+                          ? Image.network(
+                              imageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _placeholderIcon(),
+                            )
+                          : _placeholderIcon(),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            product.name,
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: product.isActive ? Colors.green.shade50 : Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: product.isActive ? Colors.green.shade300 : Colors.orange.shade300,
+                            ),
+                          ),
+                          child: Text(
+                            product.isActive ? 'Available' : 'Unavailable',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: product.isActive ? Colors.green.shade700 : Colors.orange.shade700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      product.description ?? 'No description available',
+                      style: TextStyle(fontSize: 14, color: Colors.grey.shade600, height: 1.3),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (product.mealTypes.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        children: product.mealTypes
+                            .map((t) => Chip(
+                                  label: Text(t, style: const TextStyle(fontSize: 11)),
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  padding: EdgeInsets.zero,
+                                  visualDensity: VisualDensity.compact,
+                                ))
+                            .toList(),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.tag, size: 16, color: Colors.green.shade700),
+                          const SizedBox(width: 6),
+                          Text('ID: ${product.id}', style: TextStyle(fontSize: 13, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Price', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                            const SizedBox(height: 2),
+                            Text('Rs.${product.price.toStringAsFixed(2)}', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: product.stock > 0 ? Colors.green.shade50 : Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: product.stock > 0 ? Colors.green.shade300 : Colors.red.shade300,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.inventory_2,
+                                size: 18,
+                                color: product.stock > 0 ? Colors.green.shade700 : Colors.red.shade700,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Stock: ${product.stock}',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: product.stock > 0 ? Colors.green.shade700 : Colors.red.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _placeholderIcon() => Center(
+        child: Icon(Icons.fastfood, size: 45, color: Colors.teal.shade300),
+      );
 }

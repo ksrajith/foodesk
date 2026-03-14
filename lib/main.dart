@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'core/app_theme.dart';
 import 'utils/fcm_utils.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_register_screen.dart';
@@ -48,6 +49,11 @@ Future<void> main() async {
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
       await initLocalNotifications();
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        final data = message.data;
+        if (isLateOrderPendingMessage(data)) {
+          showLateOrderNotificationFromData(data);
+          return;
+        }
         final title = message.notification?.title ?? 'FoodDesk';
         final body = message.notification?.body ?? '';
         if (title.isNotEmpty || body.isNotEmpty) {
@@ -82,18 +88,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'FoodDesk',
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.light,
-      theme: ThemeData(
-        useMaterial3: false,
-        brightness: Brightness.light,
-        primarySwatch: Colors.teal,
-        scaffoldBackgroundColor: Colors.white,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.teal,
-          brightness: Brightness.light,
-          primary: Colors.teal,
-        ),
-      ),
+      themeMode: AppTheme.themeMode,
+      theme: AppTheme.light,
       initialRoute: initError != null ? null : '/splash',
       home: initError != null
           ? Scaffold(

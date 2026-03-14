@@ -186,7 +186,41 @@ exports.onLateOrderCreated = functions.firestore
     const data = snap.data();
     if (!data || !data.lateOrder) return null;
     const vendorId = data.vendorId;
+    const orderId = context.params.orderId;
     if (!vendorId) return null;
+
+    // Send FCM (data message) to vendor so app can show notification with Approve/Reject/Cancel buttons
+    try {
+      const userSnap = await admin.firestore().collection("users").doc(vendorId).get();
+      const vendorData = userSnap.exists && userSnap.data() ? userSnap.data() : null;
+      const fcmToken = vendorData && vendorData.fcmToken;
+      if (fcmToken && isValidFcmToken(fcmToken)) {
+        const title = "New late order";
+        const body = (data.customerName || "Customer") + " – " + (data.productName || "Meal") + " (x" + (data.quantity || 1) + ")";
+        await admin.messaging().send({
+          token: fcmToken,
+          data: {
+            type: "late_order_pending",
+            orderId,
+            productId: String(data.productId || ""),
+            quantity: String(data.quantity || 1),
+            customerName: String(data.customerName || ""),
+            productName: String(data.productName || ""),
+            mealType: String(data.mealType || ""),
+            title,
+            body,
+          },
+          android: {
+            priority: "high",
+          },
+        });
+        console.log("Late order FCM sent to vendor", vendorId);
+      }
+    } catch (fcmErr) {
+      console.warn("onLateOrderCreated: FCM to vendor failed", fcmErr);
+    }
+
+    // Email to vendor (if SMTP configured)
     let vendorEmail = "";
     try {
       const userSnap = await admin.firestore().collection("users").doc(vendorId).get();
@@ -194,36 +228,34 @@ exports.onLateOrderCreated = functions.firestore
     } catch (e) {
       console.warn("onLateOrderCreated: could not get vendor email", e);
     }
-    if (!vendorEmail || !vendorEmail.includes("@")) return null;
-    const transporter = getSmtpTransporter();
-    if (!transporter) {
-      console.warn("onLateOrderCreated: SMTP not configured.");
-      return null;
-    }
-    const text = [
-      "A new late meal reservation requires your approval.",
-      "",
-      "Customer: " + (data.customerName || "Customer"),
-      "Product: " + (data.productName || "Meal"),
-      "Quantity: " + (data.quantity || 1),
-      data.mealType ? "Meal type: " + data.mealType : "",
-      data.customerNotes ? "Notes: " + data.customerNotes : "",
-      "",
-      "Please open the FoodDesk app and go to Late Orders to approve or reject.",
-    ]
-      .filter(Boolean)
-      .join("\n");
-    try {
-      await transporter.sendMail({
-        from: process.env.SMTP_USER || (functions.config().smtp && functions.config().smtp.user) || "noreply@fooddesk.com",
-        to: vendorEmail,
-        subject: "FoodDesk: New late order awaiting your approval",
-        text,
-      });
-      console.log("Late order notification sent to vendor", vendorEmail);
-    } catch (err) {
-      console.error("onLateOrderCreated: send failed", err);
-      throw err;
+    if (vendorEmail && vendorEmail.includes("@")) {
+      const transporter = getSmtpTransporter();
+      if (transporter) {
+        const text = [
+          "A new late meal reservation requires your approval.",
+          "",
+          "Customer: " + (data.customerName || "Customer"),
+          "Product: " + (data.productName || "Meal"),
+          "Quantity: " + (data.quantity || 1),
+          data.mealType ? "Meal type: " + data.mealType : "",
+          data.customerNotes ? "Notes: " + data.customerNotes : "",
+          "",
+          "Please open the FoodDesk app and go to Late Orders to approve or reject.",
+        ]
+          .filter(Boolean)
+          .join("\n");
+        try {
+          await transporter.sendMail({
+            from: process.env.SMTP_USER || (functions.config().smtp && functions.config().smtp.user) || "noreply@fooddesk.com",
+            to: vendorEmail,
+            subject: "FoodDesk: New late order awaiting your approval",
+            text,
+          });
+          console.log("Late order email sent to vendor", vendorEmail);
+        } catch (err) {
+          console.error("onLateOrderCreated: email send failed", err);
+        }
+      }
     }
     return null;
   });

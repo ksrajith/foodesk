@@ -33,7 +33,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/ProductImages/
     - assets/app_logo.png
 
 flutter_launcher_icons:

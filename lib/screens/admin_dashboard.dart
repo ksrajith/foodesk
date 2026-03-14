@@ -158,7 +158,7 @@ class AdminDashboard extends StatelessWidget {
                         context,
                         'Total Cost',
                         'Rs.${total.toStringAsFixed(2)}',
-                        Icons.attach_money,
+                        Icons.currency_rupee,
                         Colors.teal.shade700,
                         onTap: () => _showTotalCostDialog(context),
                       );

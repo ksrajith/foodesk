@@ -147,7 +147,7 @@ class SupplierDashboard extends StatelessWidget {
                         context,
                         'Revenue',
                         'Rs.${revenue.toStringAsFixed(2)}',
-                        Icons.attach_money,
+                        Icons.currency_rupee,
                         Colors.teal.shade700,
                         '/supplier-order-summary',
                       );

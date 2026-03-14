@@ -4,6 +4,57 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/fcm_utils.dart';
 // AppData removed. User profile stored in Firestore; no app-level cache.
 
+/// Password policy: 8–12 characters; at least one uppercase, one lowercase, one digit.
+const int _passwordMinLength = 8;
+const int _passwordMaxLength = 12;
+
+String? _validatePasswordPolicy(String? value) {
+  if (value == null || value.isEmpty) return null; // Let required check handle empty
+  if (value.length < _passwordMinLength) {
+    return 'Password must be at least $_passwordMinLength characters';
+  }
+  if (value.length > _passwordMaxLength) {
+    return 'Password must be at most $_passwordMaxLength characters';
+  }
+  final hasUppercase = value.contains(RegExp(r'[A-Z]'));
+  final hasLowercase = value.contains(RegExp(r'[a-z]'));
+  final hasDigit = value.contains(RegExp(r'[0-9]'));
+  final count = (hasUppercase ? 1 : 0) + (hasLowercase ? 1 : 0) + (hasDigit ? 1 : 0);
+  if (count < 3) {
+    return 'Use uppercase, lowercase and numbers';
+  }
+  return null;
+}
+
+void _showPasswordPolicyDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.info_outline, color: Colors.teal.shade600),
+          const SizedBox(width: 8),
+          const Text('Password policy'),
+        ],
+      ),
+      content: const Text(
+        '• Length: 8–12 characters\n'
+        '• Use at least three of:\n'
+        '  · Uppercase letters (A–Z)\n'
+        '  · Lowercase letters (a–z)\n'
+        '  · Numbers (0–9)',
+        style: TextStyle(height: 1.5),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('OK'),
+        ),
+      ],
+    ),
+  );
+}
+
 class LoginRegisterScreen extends StatefulWidget {
   const LoginRegisterScreen({Key? key}) : super(key: key);
 
@@ -16,7 +67,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController(text: "demo123");
+  final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   
   String selectedRole = 'Customer';
@@ -353,10 +404,25 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                           decoration: InputDecoration(
                             labelText: 'Password',
                             prefixIcon: const Icon(Icons.lock),
-                            suffixIcon: IconButton(
-                              icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            suffixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (!isLogin)
+                                  IconButton(
+                                    icon: Icon(Icons.info_outline, size: 22, color: Colors.teal.shade600),
+                                    onPressed: () => _showPasswordPolicyDialog(context),
+                                    tooltip: 'Password policy',
+                                  ),
+                                IconButton(
+                                  icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                                ),
+                              ],
                             ),
+                            helperText: !isLogin
+                                ? '8–12 characters; use uppercase, lowercase and numbers'
+                                : null,
+                            helperMaxLines: 2,
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                             filled: true,
                             fillColor: Colors.grey.shade50,
@@ -365,9 +431,9 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                             if (value == null || value.isEmpty) {
                               return 'Please enter your password';
                             }
-                            if (!isLogin && value.length < 6) {
-                              return 'Password must be at least 6 characters';
-                            }
+                            if (isLogin) return null;
+                            final policyError = _validatePasswordPolicy(value);
+                            if (policyError != null) return policyError;
                             return null;
                           },
                         ),
@@ -453,27 +519,6 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                             ),
                           ],
                         ),
-
-                        // const SizedBox(height: 16),
-                        // Container(
-                        //   padding: const EdgeInsets.all(12),
-                        //   decoration: BoxDecoration(
-                        //     color: Colors.blue.shade50,
-                        //     borderRadius: BorderRadius.circular(8),
-                        //     border: Border.all(color: Colors.blue.shade200),
-                        //   ),
-                        //   child: Column(
-                        //     crossAxisAlignment: CrossAxisAlignment.start,
-                        //     children: [
-                        //       Text('Demo Credentials:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
-                        //       const SizedBox(height: 4),
-                        //       Text('Customer: customer@demo.com', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
-                        //       Text('Vendor: vendor@demo.com', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
-                        //       Text('Admin: admin@demo.com', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
-                        //       Text('Password: demo123', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
-                        //     ],
-                        //   ),
-                        // ),
                       ],
                     ),
                   ),
