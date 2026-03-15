@@ -187,14 +187,27 @@ class _LateOrderCard extends StatelessWidget {
       final productId = data['productId'] as String?;
       final quantity = (data['quantity'] is int) ? data['quantity'] as int : (data['quantity'] as num).toInt();
       if (productId == null || productId.isEmpty) throw Exception('Invalid order');
+      final mealType = data['mealType'] as String? ?? '';
       await FirebaseFirestore.instance.runTransaction((txn) async {
         final prodRef = FirebaseFirestore.instance.collection('products').doc(productId);
         final snap = await txn.get(prodRef);
         if (!snap.exists) throw Exception('Product not found');
         final prodData = snap.data() as Map<String, dynamic>;
-        final stock = (prodData['stock'] is int) ? prodData['stock'] as int : (prodData['stock'] as num).toInt();
-        if (stock < quantity) throw Exception('Insufficient stock');
-        txn.update(prodRef, {'stock': stock - quantity});
+        final stockByMealType = prodData['stockByMealType'];
+        if (stockByMealType is Map && mealType.isNotEmpty) {
+          final map = Map<String, int>.from(
+            (stockByMealType as Map).map((k, v) => MapEntry(k.toString(), (v is int) ? v : (v is num ? (v as num).toInt() : 0))),
+          );
+          final current = map[mealType] ?? 0;
+          if (current < quantity) throw Exception('Insufficient stock');
+          map[mealType] = current - quantity;
+          final newStock = map.values.fold<int>(0, (a, b) => a + b);
+          txn.update(prodRef, {'stockByMealType': map, 'stock': newStock});
+        } else {
+          final stock = (prodData['stock'] is int) ? prodData['stock'] as int : (prodData['stock'] as num).toInt();
+          if (stock < quantity) throw Exception('Insufficient stock');
+          txn.update(prodRef, {'stock': stock - quantity});
+        }
         txn.update(FirebaseFirestore.instance.collection('orders').doc(orderId), {
           'status': 'Pending',
           'vendorRespondedAt': FieldValue.serverTimestamp(),

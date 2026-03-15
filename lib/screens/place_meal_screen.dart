@@ -289,11 +289,21 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
           throw Exception('Product not found');
         }
         final data = snap.data() as Map<String, dynamic>;
-        final currentStock = (data['stock'] ?? 0) as int;
-        if (currentStock < quantity) {
-          throw Exception('Insufficient stock');
+        final stockByMealType = data['stockByMealType'];
+        if (stockByMealType is Map && mealType.isNotEmpty) {
+          final map = Map<String, int>.from(
+            (stockByMealType as Map).map((k, v) => MapEntry(k.toString(), (v is int) ? v : (v is num ? (v as num).toInt() : 0))),
+          );
+          final current = map[mealType] ?? 0;
+          if (current < quantity) throw Exception('Insufficient stock');
+          map[mealType] = current - quantity;
+          final newStock = map.values.fold<int>(0, (a, b) => a + b);
+          txn.update(prodRef, {'stockByMealType': map, 'stock': newStock});
+        } else {
+          final currentStock = (data['stock'] ?? 0) as int;
+          if (currentStock < quantity) throw Exception('Insufficient stock');
+          txn.update(prodRef, {'stock': currentStock - quantity});
         }
-        txn.update(prodRef, {'stock': currentStock - quantity});
 
         final orderRef = FirebaseFirestore.instance.collection('orders').doc();
         txn.set(orderRef, {

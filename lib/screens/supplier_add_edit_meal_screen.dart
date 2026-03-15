@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -24,7 +25,8 @@ class _SupplierAddEditMealScreenState extends State<SupplierAddEditMealScreen> {
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _priceController = TextEditingController();
-  final _stockController = TextEditingController();
+  /// Per-meal-type stock. Key = meal type (Breakfast/Lunch/Dinner), value = quantity. Default 1000 when category is selected.
+  final Map<String, TextEditingController> _stockByMealTypeControllers = {};
 
   final Set<String> _selectedMealTypes = {};
   bool _saving = false;
@@ -37,9 +39,14 @@ class _SupplierAddEditMealScreenState extends State<SupplierAddEditMealScreen> {
 
   bool get _isEditing => widget.product != null;
 
+  static const int _defaultStockPerCategory = 1000;
+
   @override
   void initState() {
     super.initState();
+    for (final type in kMealTypeOptions) {
+      _stockByMealTypeControllers[type] = TextEditingController(text: '$_defaultStockPerCategory');
+    }
     final p = widget.product;
     if (p != null) {
       _nameController.text = (p['name'] ?? '') as String;
@@ -47,7 +54,6 @@ class _SupplierAddEditMealScreenState extends State<SupplierAddEditMealScreen> {
       _priceController.text = (p['price'] != null)
           ? (p['price'] is int ? (p['price'] as int).toString() : (p['price'] as num).toStringAsFixed(2))
           : '';
-      _stockController.text = (p['stock'] != null) ? (p['stock'] is int ? (p['stock'] as int).toString() : (p['stock'] as num).truncate().toString()) : '0';
       final existingImage = p['image'];
       _imageUrl = (existingImage is String && existingImage.isNotEmpty) ? existingImage : null;
       _active = p['active'] != false;
@@ -62,8 +68,24 @@ class _SupplierAddEditMealScreenState extends State<SupplierAddEditMealScreen> {
       if (_selectedMealTypes.isEmpty) {
         _selectedMealTypes.addAll(kMealTypeOptions);
       }
-    } else {
-      _stockController.text = '0';
+      final stockByMealType = p['stockByMealType'];
+      if (stockByMealType is Map) {
+        for (final type in kMealTypeOptions) {
+          final v = stockByMealType[type];
+          if (v != null) {
+            final n = v is int ? v : (v is num ? v.toInt() : null);
+            if (n != null) {
+              _stockByMealTypeControllers[type]!.text = n.toString();
+            }
+          }
+        }
+      } else {
+        final legacyStock = p['stock'];
+        final single = (legacyStock is int) ? legacyStock : (legacyStock is num ? (legacyStock as num).toInt() : _defaultStockPerCategory);
+        for (final type in kMealTypeOptions) {
+          _stockByMealTypeControllers[type]!.text = single.toString();
+        }
+      }
     }
   }
 
@@ -72,7 +94,9 @@ class _SupplierAddEditMealScreenState extends State<SupplierAddEditMealScreen> {
     _nameController.dispose();
     _descriptionController.dispose();
     _priceController.dispose();
-    _stockController.dispose();
+    for (final c in _stockByMealTypeControllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -171,15 +195,25 @@ class _SupplierAddEditMealScreenState extends State<SupplierAddEditMealScreen> {
       return;
     }
 
-    int stock = 0;
-    try {
-      stock = int.parse(_stockController.text.trim());
-    } catch (_) {}
-    if (stock < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Available qty must be 0 or more.'), backgroundColor: Colors.orange),
-      );
-      return;
+    final stockByMealType = <String, int>{};
+    int stockSum = 0;
+    for (final type in _selectedMealTypes) {
+      final c = _stockByMealTypeControllers[type];
+      if (c == null) continue;
+      int qty;
+      try {
+        qty = int.parse(c.text.trim());
+      } catch (_) {
+        qty = _defaultStockPerCategory;
+      }
+      if (qty < 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Stock for $type must be 0 or more.'), backgroundColor: Colors.orange),
+        );
+        return;
+      }
+      stockByMealType[type] = qty;
+      stockSum += qty;
     }
 
     setState(() => _saving = true);
@@ -201,7 +235,8 @@ class _SupplierAddEditMealScreenState extends State<SupplierAddEditMealScreen> {
         'mealTypes': _selectedMealTypes.toList(),
         'vendorId': user.uid,
         'vendorName': user.email ?? user.displayName ?? 'Supplier',
-        'stock': stock,
+        'stockByMealType': stockByMealType,
+        'stock': stockSum,
         'active': _active,
       };
       if (_imageUrl != null && _imageUrl!.isNotEmpty) data['image'] = _imageUrl;
@@ -265,29 +300,82 @@ class _SupplierAddEditMealScreenState extends State<SupplierAddEditMealScreen> {
               },
             ),
             const SizedBox(height: 20),
-            Text('Meal type *', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            Text('Meal type & stock per category *', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
             const SizedBox(height: 8),
-            ...kMealTypeOptions.map((type) => CheckboxListTile(
-                  value: _selectedMealTypes.contains(type),
-                  onChanged: (checked) {
-                    setState(() {
-                      if (checked == true) {
-                        _selectedMealTypes.add(type);
-                      } else {
-                        _selectedMealTypes.remove(type);
-                      }
-                    });
-                  },
-                  title: Text(type),
-                  activeColor: Colors.teal,
-                )),
+            ...kMealTypeOptions.map((type) {
+              final isSelected = _selectedMealTypes.contains(type);
+              final stockController = _stockByMealTypeControllers[type]!;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CheckboxListTile(
+                    value: isSelected,
+                    onChanged: (checked) {
+                      setState(() {
+                        if (checked == true) {
+                          _selectedMealTypes.add(type);
+                          if (stockController.text.trim().isEmpty) {
+                            stockController.text = '$_defaultStockPerCategory';
+                          }
+                        } else {
+                          _selectedMealTypes.remove(type);
+                        }
+                      });
+                    },
+                    title: Text(type),
+                    activeColor: Colors.teal,
+                  ),
+                  if (isSelected)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 48, bottom: 12),
+                      child: TextFormField(
+                        controller: stockController,
+                        enabled: true,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Stock quantity ($type)',
+                          hintText: 'e.g. $_defaultStockPerCategory',
+                          prefixIcon: const Icon(Icons.inventory_2),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                        ),
+                        validator: (v) {
+                          if (!isSelected) return null;
+                          if (v == null || v.trim().isEmpty) return 'Enter stock for $type';
+                          final n = int.tryParse(v.trim());
+                          if (n == null || n < 0) return 'Enter 0 or more';
+                          return null;
+                        },
+                      ),
+                    ),
+                ],
+              );
+            }),
             const SizedBox(height: 12),
             TextFormField(
               controller: _priceController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
+                TextInputFormatter.withFunction((oldValue, newValue) {
+                  final t = newValue.text;
+                  if (t.isEmpty) return newValue;
+                  final parts = t.split('.');
+                  if (parts.length > 2) return oldValue;
+                  if (parts.length == 2 && parts[1].length > 2) {
+                    return TextEditingValue(
+                      text: '${parts[0]}.${parts[1].substring(0, 2)}',
+                      selection: TextSelection.collapsed(offset: parts[0].length + 3),
+                    );
+                  }
+                  return newValue;
+                }),
+              ],
               decoration: InputDecoration(
                 labelText: 'Price (Rs.) *',
-                hintText: 'e.g. 450',
+                hintText: 'e.g. 450.00',
+                prefixText: 'Rs ',
                 prefixIcon: const Icon(Icons.currency_rupee),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
@@ -297,25 +385,8 @@ class _SupplierAddEditMealScreenState extends State<SupplierAddEditMealScreen> {
                 if (v == null || v.trim().isEmpty) return 'Price is required';
                 final n = double.tryParse(v.trim().replaceFirst(',', '.'));
                 if (n == null || n < 0) return 'Enter a valid price';
-                return null;
-              },
-            ),
-            const SizedBox(height: 20),
-            TextFormField(
-              controller: _stockController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'Available qty',
-                hintText: 'e.g. 20',
-                prefixIcon: const Icon(Icons.inventory_2),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-              ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return null;
-                final n = int.tryParse(v.trim());
-                if (n == null || n < 0) return 'Enter 0 or more';
+                final parts = v.trim().split(RegExp(r'[.,]'));
+                if (parts.length > 1 && parts[1].length > 2) return 'Max 2 decimal places';
                 return null;
               },
             ),
