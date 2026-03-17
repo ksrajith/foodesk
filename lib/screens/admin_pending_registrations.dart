@@ -7,6 +7,15 @@ class AdminPendingRegistrations extends StatelessWidget {
 
   static const List<String> _roles = ['Customer', 'Supplier', 'Admin'];
 
+  static String _normalizeRole(String? role) {
+    final r = (role ?? '').trim().toLowerCase();
+    if (r == 'admin') return 'Admin';
+    if (r == 'supplier' || r == 'vendor') return 'Supplier';
+    if (r == 'customer' || r == 'user') return 'Customer';
+    // Default/fallback so we never write an invalid role.
+    return 'Customer';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -77,7 +86,7 @@ class AdminPendingRegistrations extends StatelessWidget {
   static void showApprovalDialog(BuildContext scaffoldContext, String requestId, Map<String, dynamic> data) {
     final email = data['email'] as String? ?? '';
     final name = data['name'] as String? ?? '';
-    String selectedRole = (data['requestedRole'] as String?) ?? 'Customer';
+    String selectedRole = _normalizeRole(data['requestedRole'] as String?);
     final commentController = TextEditingController();
 
     showDialog(
@@ -94,6 +103,10 @@ class AdminPendingRegistrations extends StatelessWidget {
                   const Text('Registration email', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                   const SizedBox(height: 4),
                   Text(email, style: const TextStyle(fontSize: 16)),
+                  if (name.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(name, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                  ],
                   const SizedBox(height: 16),
                   const Text('User role', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                   const SizedBox(height: 8),
@@ -105,7 +118,7 @@ class AdminPendingRegistrations extends StatelessWidget {
                     ),
                     items: _roles.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
                     onChanged: (v) {
-                      if (v != null) setDialogState(() => selectedRole = v);
+                      if (v != null) setDialogState(() => selectedRole = _normalizeRole(v));
                     },
                   ),
                   const SizedBox(height: 16),
@@ -124,15 +137,15 @@ class AdminPendingRegistrations extends StatelessWidget {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(ctx),
+                onPressed: () => Navigator.pop(dialogBuildContext),
                 child: const Text('Cancel'),
               ),
               TextButton(
-                onPressed: () => _respondStatic(ctx, scaffoldContext, requestId, data, false, selectedRole, commentController.text),
+                onPressed: () => _respondStatic(dialogBuildContext, scaffoldContext, requestId, data, false, _normalizeRole(selectedRole), commentController.text),
                 child: Text('Reject', style: TextStyle(color: Colors.red.shade700)),
               ),
               ElevatedButton(
-                onPressed: () => _respondStatic(ctx, scaffoldContext, requestId, data, true, selectedRole, commentController.text),
+                onPressed: () => _respondStatic(dialogBuildContext, scaffoldContext, requestId, data, true, _normalizeRole(selectedRole), commentController.text),
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade600),
                 child: const Text('Approve'),
               ),
@@ -152,13 +165,16 @@ class AdminPendingRegistrations extends StatelessWidget {
     String role,
     String comment,
   ) async {
+    final normalizedRole = _normalizeRole(role);
     final adminUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final adminName = FirebaseAuth.instance.currentUser?.displayName ?? 'Admin';
     final adminEmail = FirebaseAuth.instance.currentUser?.email ?? '';
     try {
+      // Ensure any open dropdown/menu overlay is closed.
+      FocusManager.instance.primaryFocus?.unfocus();
       await FirebaseFirestore.instance.collection('registration_requests').doc(requestId).update({
         'status': approve ? 'approved' : 'rejected',
-        'approvedRole': approve ? role : null,
+        'approvedRole': approve ? normalizedRole : null,
         'adminComment': comment.isEmpty ? null : comment,
         'respondedAt': FieldValue.serverTimestamp(),
         'respondedBy': adminUid,
@@ -166,10 +182,10 @@ class AdminPendingRegistrations extends StatelessWidget {
         'respondedByEmail': adminEmail,
       });
       if (!dialogContext.mounted) return;
-      Navigator.pop(dialogContext);
+      Navigator.of(dialogContext, rootNavigator: true).pop();
       // Defer SnackBar to next frame to avoid _dependents.isEmpty assertion when
       // the stream updates and the list dialog rebuilds (e.g. after approving an Admin request).
-      final message = approve ? 'Registration approved. User role: $role.' : 'Registration rejected.';
+      final message = approve ? 'Registration approved. User role: $normalizedRole.' : 'Registration rejected.';
       final color = approve ? Colors.green : Colors.orange;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (screenContext.mounted && ScaffoldMessenger.maybeOf(screenContext) != null) {

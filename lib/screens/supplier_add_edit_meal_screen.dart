@@ -376,7 +376,6 @@ class _SupplierAddEditMealScreenState extends State<SupplierAddEditMealScreen> {
                 labelText: 'Price (Rs.) *',
                 hintText: 'e.g. 450.00',
                 prefixText: 'Rs ',
-                prefixIcon: const Icon(Icons.currency_rupee),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
                 fillColor: Colors.grey.shade50,

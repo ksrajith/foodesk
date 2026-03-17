@@ -134,7 +134,7 @@ class AdminDashboard extends StatelessWidget {
                         context,
                         'Total Orders',
                         count.toString(),
-                        Icons.shopping_cart,
+                        Icons.set_meal,
                         Colors.green,
                         onTap: () => Navigator.pushNamed(context, '/admin-total-orders'),
                       );
@@ -158,7 +158,7 @@ class AdminDashboard extends StatelessWidget {
                         context,
                         'Total Cost',
                         'Rs.${total.toStringAsFixed(2)}',
-                        Icons.currency_rupee,
+                        Icons.money,
                         Colors.teal.shade700,
                         onTap: () => _showTotalCostDialog(context),
                       );
