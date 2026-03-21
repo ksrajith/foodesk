@@ -1,14 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-// AppData removed: use FirebaseAuth/Firestore for current user data
+import '../utils/fcm_utils.dart';
 
-class SupplierDashboard extends StatelessWidget {
+/// Supplier home: refreshes FCM token like customer dashboard so Cloud Functions can send late-order pushes.
+class SupplierDashboard extends StatefulWidget {
   const SupplierDashboard({Key? key}) : super(key: key);
 
   @override
+  State<SupplierDashboard> createState() => _SupplierDashboardState();
+}
+
+class _SupplierDashboardState extends State<SupplierDashboard> {
+  @override
+  void initState() {
+    super.initState();
+    refreshFcmTokenAndSave();
+    Future<void>.delayed(const Duration(seconds: 3), () => refreshFcmTokenAndSave());
+    Future<void>.delayed(const Duration(seconds: 8), () => refreshFcmTokenAndSave());
+  }
+
+  @override
   Widget build(BuildContext context) {
-  final firebaseUser = FirebaseAuth.instance.currentUser;
+    final firebaseUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       appBar: AppBar(

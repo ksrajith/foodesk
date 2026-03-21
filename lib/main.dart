@@ -10,7 +10,8 @@ import 'screens/login_register_screen.dart';
 import 'screens/forgot_password_screen.dart';
 import 'screens/admin_dashboard.dart';
 import 'screens/admin_pending_registrations.dart';
-import 'screens/admin_approved_registrations_screen.dart';
+import 'screens/admin_registration_history.dart';
+import 'screens/admin_registration_details_screen.dart';
 import 'screens/admin_settings_screen.dart';
 import 'screens/admin_product_list.dart';
 import 'screens/admin_order_list.dart';
@@ -117,7 +118,15 @@ class MyApp extends StatelessWidget {
         '/forgot-password': (context) => const ForgotPasswordScreen(),
         '/admin-dashboard': (context) => const AdminDashboard(),
         '/admin-pending-registrations': (context) => const AdminPendingRegistrations(),
-        '/admin-approved-registrations': (context) => const AdminApprovedRegistrationsScreen(),
+        '/admin-registration-history': (context) => const AdminRegistrationHistoryScreen(),
+        // Legacy route (same screen)
+        '/admin-approved-registrations': (context) => const AdminRegistrationHistoryScreen(),
+        '/admin-registration-details': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments;
+          return AdminRegistrationDetailsScreen(
+            args: args is RegistrationDetailsArgs ? args : null,
+          );
+        },
         '/admin-settings': (context) => const AdminSettingsScreen(),
         '/admin-products': (context) => const AdminProductList(),
         '/admin-orders': (context) => const AdminOrderList(),

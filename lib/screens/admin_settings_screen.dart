@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'admin_approved_registrations_screen.dart';
+import 'admin_registration_history.dart';
 import '../utils/app_settings.dart';
 
 class AdminSettingsScreen extends StatefulWidget {
@@ -63,13 +63,13 @@ class _UserManagementTab extends StatelessWidget {
         Card(
           child: ListTile(
             leading: const Icon(Icons.verified_user, color: Colors.teal),
-            title: const Text('Approved Registrations'),
-            subtitle: const Text('View, activate or deactivate user accounts'),
+            title: const Text('Registration History'),
+            subtitle: const Text('Approved and rejected requests, admin comments, user actions'),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute<void>(
-                builder: (context) => const AdminApprovedRegistrationsScreen(),
+                builder: (context) => const AdminRegistrationHistoryScreen(),
               ),
             ),
           ),

@@ -1,7 +1,10 @@
-const functions = require("firebase-functions");
+// Use v1 API explicitly so deploy/emulator can detect 1st gen backend (avoids load timeout / spec errors).
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 
-admin.initializeApp();
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 
 // Lazy-load nodemailer to avoid deployment timeout during initial load
 function getNodemailer() {
@@ -184,24 +187,52 @@ exports.onLateOrderCreated = functions.firestore
   .document("orders/{orderId}")
   .onCreate(async (snap, context) => {
     const data = snap.data();
-    if (!data || !data.lateOrder) return null;
+    // Firestore may store boolean; be defensive for any legacy/string values
+    const isLateOrder =
+      data &&
+      (data.lateOrder === true ||
+        data.lateOrder === "true" ||
+        data.lateOrder === 1);
+    if (!data || !isLateOrder) {
+      return null;
+    }
     const vendorId = data.vendorId;
     const orderId = context.params.orderId;
-    if (!vendorId) return null;
+    if (!vendorId) {
+      console.warn("onLateOrderCreated: missing vendorId on order", orderId);
+      return null;
+    }
 
-    // Send FCM (data message) to vendor so app can show notification with Approve/Reject/Cancel buttons
+    // Send FCM to vendor: use BOTH notification + data.
+    // Data-only messages often do not show in the system tray when the app is backgrounded/killed on Android;
+    // customer late-order responses already use notification + channelId for reliable delivery.
     try {
       const userSnap = await admin.firestore().collection("users").doc(vendorId).get();
       const vendorData = userSnap.exists && userSnap.data() ? userSnap.data() : null;
       const fcmToken = vendorData && vendorData.fcmToken;
-      if (fcmToken && isValidFcmToken(fcmToken)) {
+      if (!fcmToken) {
+        console.warn(
+          "onLateOrderCreated: no fcmToken for vendor",
+          vendorId,
+          "- supplier must open the app and allow notifications so the token is saved to users/{uid}"
+        );
+      } else if (!isValidFcmToken(fcmToken)) {
+        console.warn("onLateOrderCreated: invalid fcmToken for vendor", vendorId);
+      } else {
         const title = "New late order";
-        const body = (data.customerName || "Customer") + " – " + (data.productName || "Meal") + " (x" + (data.quantity || 1) + ")";
+        const body =
+          (data.customerName || "Customer") +
+          " – " +
+          (data.productName || "Meal") +
+          " (x" +
+          (data.quantity || 1) +
+          ")";
         await admin.messaging().send({
           token: fcmToken,
+          notification: { title, body },
           data: {
             type: "late_order_pending",
-            orderId,
+            orderId: String(orderId),
             productId: String(data.productId || ""),
             quantity: String(data.quantity || 1),
             customerName: String(data.customerName || ""),
@@ -212,6 +243,11 @@ exports.onLateOrderCreated = functions.firestore
           },
           android: {
             priority: "high",
+            notification: {
+              channelId: "food_desk_orders",
+              title,
+              body,
+            },
           },
         });
         console.log("Late order FCM sent to vendor", vendorId);

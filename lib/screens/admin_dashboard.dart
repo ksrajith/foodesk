@@ -202,11 +202,11 @@ class AdminDashboard extends StatelessWidget {
                   const SizedBox(height: 12),
                   _buildMenuTile(
                     context,
-                    'Approved Registrations',
-                    'View, activate or deactivate user accounts',
+                    'Registration History',
+                    'Approved and rejected requests, admin comments, user actions',
                     Icons.verified_user,
                     Colors.teal,
-                    '/admin-approved-registrations',
+                    '/admin-registration-history',
                   ),
                   const SizedBox(height: 12),
                   _buildMenuTile(

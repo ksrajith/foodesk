@@ -15,7 +15,8 @@ class AppConstants {
   static const String routeForgotPassword = '/forgot-password';
   static const String routeAdminDashboard = '/admin-dashboard';
   static const String routeAdminPendingRegistrations = '/admin-pending-registrations';
-  static const String routeAdminApprovedRegistrations = '/admin-approved-registrations';
+  static const String routeAdminRegistrationHistory = '/admin-registration-history';
+  static const String routeAdminRegistrationDetails = '/admin-registration-details';
   static const String routeAdminSettings = '/admin-settings';
   static const String routeAdminProducts = '/admin-products';
   static const String routeAdminOrders = '/admin-orders';
