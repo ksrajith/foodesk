@@ -5,7 +5,7 @@ import '../utils/registration_stats.dart';
 import '../utils/registration_report_pdf.dart';
 import 'admin_registration_details_screen.dart';
 
-/// Summary of users and registration requests; opens **Registration Details** when a count is tapped.
+/// Summary of users and registration requests; opens **Registration Details** when a request count is tapped.
 class AdminRegistrationHistoryScreen extends StatefulWidget {
   const AdminRegistrationHistoryScreen({Key? key}) : super(key: key);
 
@@ -20,7 +20,8 @@ class _AdminRegistrationHistoryScreenState extends State<AdminRegistrationHistor
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this, initialIndex: 0);
+    // All | Pending | Approved | Rejected — default: Pending
+    _tabController = TabController(length: 4, vsync: this, initialIndex: 1);
   }
 
   @override
@@ -105,7 +106,9 @@ class _AdminRegistrationHistoryScreenState extends State<AdminRegistrationHistor
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
           indicatorColor: Colors.white,
+          isScrollable: true,
           tabs: const [
+            Tab(text: 'All'),
             Tab(text: 'Pending'),
             Tab(text: 'Approved'),
             Tab(text: 'Rejected'),
@@ -146,80 +149,30 @@ class _AdminRegistrationHistoryScreenState extends State<AdminRegistrationHistor
                 _accumulate(usersByRole, d.data()['role'] as String?);
               }
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              return TabBarView(
+                controller: _tabController,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: Card(
-                      elevation: 2,
-                      child: ExpansionTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.teal.shade100,
-                          child: Icon(Icons.people, color: Colors.teal.shade800),
-                        ),
-                        title: Text(
-                          'Total users: $totalUsers',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                        subtitle: const Text('Tap to expand counts by role'),
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                            child: Column(
-                              children: kRegistrationRoleLabels
-                                  .map(
-                                    (r) => ListTile(
-                                      dense: true,
-                                      title: Text(r),
-                                      trailing: Text(
-                                        '${usersByRole[r] ?? 0}',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.teal.shade700,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  _buildAllTab(totalUsers: totalUsers, usersByRole: usersByRole),
+                  _buildRequestStatusTab(
+                    totalLabel: 'Total pending users',
+                    counts: pending,
+                    statusKey: 'pending',
+                    color: Colors.orange.shade700,
+                    hint: 'Tap a count to open Registration Details (filtered).',
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Text(
-                      'Registration requests by role — tap a count to open Registration Details',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-                    ),
+                  _buildRequestStatusTab(
+                    totalLabel: 'Total approved users',
+                    counts: approved,
+                    statusKey: 'approved',
+                    color: Colors.green.shade700,
+                    hint: 'Tap a count to open Registration Details (filtered).',
                   ),
-                  Expanded(
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildRoleCountTab(
-                          title: 'Pending',
-                          counts: pending,
-                          statusKey: 'pending',
-                          color: Colors.orange.shade700,
-                        ),
-                        _buildRoleCountTab(
-                          title: 'Approved',
-                          counts: approved,
-                          statusKey: 'approved',
-                          color: Colors.green.shade700,
-                        ),
-                        _buildRoleCountTab(
-                          title: 'Rejected',
-                          counts: rejected,
-                          statusKey: 'rejected',
-                          color: Colors.red.shade700,
-                        ),
-                      ],
-                    ),
+                  _buildRequestStatusTab(
+                    totalLabel: 'Total rejected users',
+                    counts: rejected,
+                    statusKey: 'rejected',
+                    color: Colors.red.shade700,
+                    hint: 'Tap a count to open Registration Details (filtered).',
                   ),
                 ],
               );
@@ -230,11 +183,98 @@ class _AdminRegistrationHistoryScreenState extends State<AdminRegistrationHistor
     );
   }
 
-  Widget _buildRoleCountTab({
-    required String title,
+  /// All accounts in `users` — by role (no expand; not linked to registration request details).
+  Widget _buildAllTab({
+    required int totalUsers,
+    required Map<String, int> usersByRole,
+  }) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          elevation: 2,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _openDetails(status: 'all'),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: Colors.teal.shade100,
+                            child: Icon(Icons.people, color: Colors.teal.shade800),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        'Total users: $totalUsers',
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                                      ),
+                                    ),
+                                    Icon(Icons.chevron_right, color: Colors.teal.shade700),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Tap to open Registration Details (all statuses)',
+                                  style: TextStyle(fontSize: 13, color: Colors.teal.shade700),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const Divider(height: 28),
+                ...kRegistrationRoleLabels.map(
+                  (r) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(r, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15))),
+                        Text(
+                          '${usersByRole[r] ?? 0}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                            color: Colors.teal.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Pending / Approved / Rejected registration requests by role.
+  Widget _buildRequestStatusTab({
+    required String totalLabel,
     required Map<String, int> counts,
     required String statusKey,
     required Color color,
+    required String hint,
   }) {
     final total = counts.values.fold<int>(0, (a, b) => a + b);
     return ListView(
@@ -243,7 +283,7 @@ class _AdminRegistrationHistoryScreenState extends State<AdminRegistrationHistor
         Card(
           color: color.withOpacity(0.08),
           child: ListTile(
-            title: Text('Total $title', style: const TextStyle(fontWeight: FontWeight.w600)),
+            title: Text(totalLabel, style: const TextStyle(fontWeight: FontWeight.w600)),
             trailing: Text(
               '$total',
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color),
@@ -251,7 +291,10 @@ class _AdminRegistrationHistoryScreenState extends State<AdminRegistrationHistor
             onTap: total > 0 ? () => _openDetails(status: statusKey) : null,
           ),
         ),
-        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
+          child: Text(hint, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+        ),
         ...kRegistrationRoleLabels.map((role) {
           final n = counts[role] ?? 0;
           return Padding(
