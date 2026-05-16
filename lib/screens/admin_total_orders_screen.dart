@@ -355,7 +355,7 @@ class _AdminTotalOrdersScreenState extends State<AdminTotalOrdersScreen> {
             const SizedBox(height: 10),
             _row(Icons.person, 'Customer: ${order['customerName'] ?? 'N/A'}'),
             _row(Icons.inventory_2, 'Product: ${order['productName'] ?? 'N/A'}'),
-            _row(Icons.store, 'Supplier: ${order['vendorName'] ?? 'N/A'}'),
+            _row(Icons.store, 'Supplier: ${order['supplierName'] ?? 'N/A'}'),
             _row(Icons.calendar_today, 'Ordered: ${DateTimeUtils.formatAny(order['orderDate'])}'),
             _row(Icons.event, 'Delivery: ${DateTimeUtils.formatAny(order['deliveryDate'])}'),
             _row(Icons.restaurant, 'Meal: ${order['mealType'] ?? '—'}'),

@@ -33,19 +33,19 @@ service cloud.firestore {
       allow read, write: if request.auth != null
         && (request.auth.uid == userId || isAdmin());
     }
-    // Products: any authenticated user can read; write for authenticated (vendor owns their products)
+    // Products: any authenticated user can read; write for authenticated (supplier owns their products)
     match /products/{id} {
       allow read: if request.auth != null;
       allow create, update, delete: if request.auth != null;
     }
-    // Orders: any authenticated user can read/write (app filters by customerId/vendorId)
+    // Orders: any authenticated user can read/write (app filters by customerId/supplierId)
     match /orders/{id} {
       allow read, write: if request.auth != null;
     }
-    // Vendor config: Order Before times per meal type. Vendor writes own doc; anyone signed in can read (for countdown).
-    match /vendor_config/{vendorId} {
+    // Supplier config: Order Before times per meal type. supplier writes own doc; anyone signed in can read (for countdown).
+    match /supplier_config/{supplierId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == vendorId;
+      allow write: if request.auth != null && request.auth.uid == supplierId;
     }
     // Pool: meals moved by users (after deadline) or released; anyone signed in can read/write (add to pool, allocate).
     match /pool/{poolId} {

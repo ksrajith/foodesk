@@ -97,7 +97,7 @@ Future<void> printTotalOrdersPdf({
                 children: [
                   _cell((o['customerName'] as String?) ?? '—'),
                   _cell((o['productName'] as String?) ?? '—'),
-                  _cell((o['vendorName'] as String?) ?? '—'),
+                  _cell((o['supplierName'] as String?) ?? '—'),
                   _cell((o['mealType'] as String?) ?? '—'),
                   _cell((o['status'] as String?) ?? '—'),
                   _cell('Rs.${((o['totalPrice'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}'),
@@ -117,7 +117,7 @@ Future<void> printTotalOrdersPdf({
   );
 }
 
-/// Builds PDF for Vendor Order Summary and opens print dialog.
+/// Builds PDF for Supplier Order Summary and opens print dialog.
 Future<void> printOrderSummaryPdf({
   required String reportTitle,
   required String periodLabel,

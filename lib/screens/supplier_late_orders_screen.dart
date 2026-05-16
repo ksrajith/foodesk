@@ -20,7 +20,7 @@ class SupplierLateOrdersScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final vendorId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final supplierId = FirebaseAuth.instance.currentUser?.uid ?? '';
     return Scaffold(
       appBar: AppBar(
         title: const Text('Late Orders'),
@@ -30,7 +30,7 @@ class SupplierLateOrdersScreen extends StatelessWidget {
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('orders')
-            .where('vendorId', isEqualTo: vendorId)
+            .where('supplierId', isEqualTo: supplierId)
             .where('lateOrder', isEqualTo: true)
             .snapshots(),
         builder: (context, snapshot) {

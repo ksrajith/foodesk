@@ -596,13 +596,13 @@ class _TodayPoolAllocateList extends StatelessWidget {
             final qty = (data['quantity'] is int) ? data['quantity'] as int : (data['quantity'] as num).toInt();
             final productName = data['productName'] ?? 'N/A';
             final mealType = data['mealType'] ?? '—';
-            final vendorName = data['vendorName'] ?? '';
+            final supplierName = data['supplierName'] ?? '';
             final pricePerUnit = (data['pricePerUnit'] is num) ? (data['pricePerUnit'] as num).toDouble() : 0.0;
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
                 title: Text(productName, style: const TextStyle(fontSize: 14)),
-                subtitle: Text('$mealType · $vendorName · Qty: $qty', style: const TextStyle(fontSize: 12)),
+                subtitle: Text('$mealType · $supplierName · Qty: $qty', style: const TextStyle(fontSize: 12)),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

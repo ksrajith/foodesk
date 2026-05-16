@@ -27,7 +27,7 @@ All products include:
    ```bash
    ./seed_firebase.sh
    ```
-3. Enter your vendor credentials when prompted
+3. Enter your supplier credentials when prompted
 4. Wait for the seeding process to complete
 
 ### Method 2: Manual Command
@@ -42,21 +42,21 @@ flutter run -d macos -t lib/scripts/seed_firestore.dart \
 ```
 
 **Note:** 
-- Use `vendor@demo.com` / `demo123` for the demo vendor account
+- Use `supplier@demo.com` / `demo123` for the demo supplier account
 - Set `SEED_ORDERS=true` if you want to create sample orders
-- The script will automatically assign the products to the logged-in vendor
+- The script will automatically assign the products to the logged-in supplier
 
 ## Viewing the Products
 
-### As a Vendor:
-1. Login with vendor credentials
+### As a Supplier:
+1. Login with supplier credentials
 2. Navigate to "My Products"
 3. You'll see all 7 food products with images
 
 ### As an Admin:
 1. Login with admin credentials (admin@demo.com / demo123)
 2. Navigate to "All Products"
-3. You'll see all products from all vendors
+3. You'll see all products from all suppliers
 
 ### As a Customer:
 1. Login with customer credentials (customer@demo.com / demo123)

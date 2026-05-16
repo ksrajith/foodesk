@@ -86,6 +86,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
     setState(() {
       isLogin = !isLogin;
       _formKey.currentState?.reset();
+      selectedRole = 'Customer';
     });
   }
 
@@ -217,6 +218,11 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
       }
 
       if (!mounted) return;
+      final mustChangePassword = profile['mustChangePassword'] == true;
+      if (mustChangePassword) {
+        await Navigator.pushNamed(context, '/change-password', arguments: true);
+        if (!mounted) return;
+      }
       await refreshFcmTokenAndSave();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -228,7 +234,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
       final role = ((profile['role'] ?? 'Customer') as String).trim().toLowerCase();
       if (role == 'admin') {
         Navigator.pushReplacementNamed(context, '/admin-dashboard');
-      } else if (role == 'vendor' || role == 'supplier') {
+      } else if (role == 'supplier') {
         Navigator.pushReplacementNamed(context, '/supplier-dashboard');
       } else {
         Navigator.pushReplacementNamed(context, '/customer-home');
@@ -289,6 +295,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
       setState(() {
         isLogin = true;
         _formKey.currentState?.reset();
+        selectedRole = 'Customer';
       });
     } on FirebaseAuthException catch (e) {
       final msg = e.code == 'email-already-in-use'

@@ -79,7 +79,7 @@ class _SupplierOrderSummaryState extends State<SupplierOrderSummary> {
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: FirebaseFirestore.instance
                   .collection('orders')
-                  .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
+                  .where('supplierId', isEqualTo: firebaseUser?.uid ?? '')
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {

@@ -24,12 +24,12 @@ DateTime? _orderDeliveryDate(Map<String, dynamic> order) {
   return null;
 }
 
-/// Returns the "Order Before" deadline for a given vendor, meal type, and delivery date.
-/// Uses vendor_config: orderBefore{MealType} (hour) and orderBefore{MealType}DeadlineBase ('day_before' | 'current').
+/// Returns the "Order Before" deadline for a given supplier, meal type, and delivery date.
+/// Uses supplier_config: orderBefore{MealType} (hour) and orderBefore{MealType}DeadlineBase ('day_before' | 'current').
 /// Default deadline base is 'day_before'.
-Future<DateTime?> getOrderBeforeDeadline(String vendorId, String mealType, DateTime deliveryDate) async {
+Future<DateTime?> getOrderBeforeDeadline(String supplierId, String mealType, DateTime deliveryDate) async {
   try {
-    final doc = await FirebaseFirestore.instance.collection('vendor_config').doc(vendorId).get();
+    final doc = await FirebaseFirestore.instance.collection('supplier_config').doc(supplierId).get();
     if (!doc.exists || doc.data() == null) return null;
     final data = doc.data()!;
     final fieldName = 'orderBefore$mealType';
@@ -56,14 +56,14 @@ Future<DateTime?> getOrderBeforeDeadline(String vendorId, String mealType, DateT
 
 /// Returns true if the order's "Order Before" deadline has passed (based on order's delivery date and supplier config).
 Future<bool> isOrderPastDeadline(Map<String, dynamic> order) async {
-  final vendorId = order['vendorId'] as String?;
+  final supplierId = order['supplierId'] as String?;
   final mealType = order['mealType'] as String?;
   final deliveryDate = _orderDeliveryDate(order);
-  if (vendorId == null || vendorId.isEmpty || mealType == null || mealType.isEmpty || deliveryDate == null) {
+  if (supplierId == null || supplierId.isEmpty || mealType == null || mealType.isEmpty || deliveryDate == null) {
     return false;
   }
   try {
-    final deadline = await getOrderBeforeDeadline(vendorId, mealType, deliveryDate);
+    final deadline = await getOrderBeforeDeadline(supplierId, mealType, deliveryDate);
     if (deadline == null) return false;
     final now = DateTime.now();
     return now.isAfter(deadline) || now.isAtSameMomentAs(deadline);
@@ -76,8 +76,8 @@ Future<bool> isOrderPastDeadline(Map<String, dynamic> order) async {
 Future<void> addToPool({
   required String productId,
   required String productName,
-  required String vendorId,
-  required String vendorName,
+  required String supplierId,
+  required String supplierName,
   required String mealType,
   required int quantity,
   double pricePerUnit = 0,
@@ -100,8 +100,8 @@ Future<void> addToPool({
         'date': date,
         'productId': productId,
         'productName': productName,
-        'vendorId': vendorId,
-        'vendorName': vendorName,
+        'supplierId': supplierId,
+        'supplierName': supplierName,
         'mealType': mealType,
         'quantity': current + quantity,
         'pricePerUnit': pricePerUnit,
@@ -173,12 +173,12 @@ Future<void> allocateFromPool({
   final ref = FirebaseFirestore.instance.collection('pool').doc(poolDocId);
   final productId = poolData['productId'] as String?;
   final productName = poolData['productName'] as String?;
-  final vendorId = poolData['vendorId'] as String?;
-  final vendorName = poolData['vendorName'] as String?;
+  final supplierId = poolData['supplierId'] as String?;
+  final supplierName = poolData['supplierName'] as String?;
   final mealType = poolData['mealType'] as String?;
   final pricePerUnit = (poolData['pricePerUnit'] is num) ? (poolData['pricePerUnit'] as num).toDouble() : 0.0;
   final totalPrice = pricePerUnit * quantity;
-  if (productId == null || vendorId == null) return;
+  if (productId == null || supplierId == null) return;
 
   await FirebaseFirestore.instance.runTransaction((txn) async {
     final snap = await txn.get(ref);
@@ -193,8 +193,8 @@ Future<void> allocateFromPool({
       'customerName': customerName,
       'productId': productId,
       'productName': productName ?? 'Pool meal',
-      'vendorId': vendorId,
-      'vendorName': vendorName ?? '',
+      'supplierId': supplierId,
+      'supplierName': supplierName ?? '',
       'quantity': quantity,
       'totalPrice': totalPrice,
       'status': 'Pending',

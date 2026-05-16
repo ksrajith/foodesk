@@ -9,11 +9,11 @@ class ProductRepository {
 
   final FirebaseFirestore _firestore;
 
-  /// Stream of products for a vendor (supplier). Returns typed [Product] list.
-  Stream<List<Product>> streamProductsByVendor(String vendorId) {
+  /// Stream of products for a supplier. Returns typed [Product] list.
+  Stream<List<Product>> streamProductsBySupplier(String supplierId) {
     return _firestore
         .collection(AppConstants.collectionProducts)
-        .where('vendorId', isEqualTo: vendorId)
+        .where('vendorId', isEqualTo: supplierId)
         .snapshots()
         .map((snap) => snap.docs
             .map((d) => Product.fromMap(d.id, d.data()))

@@ -82,7 +82,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                   child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
                         .collection('products')
-                        .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
+                        .where('supplierId', isEqualTo: firebaseUser?.uid ?? '')
                         .snapshots(),
                     builder: (context, snapshot) {
                       final count = snapshot.data?.docs.length ?? 0;
@@ -102,7 +102,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                   child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
                         .collection('orders')
-                        .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
+                        .where('supplierId', isEqualTo: firebaseUser?.uid ?? '')
                         .snapshots(),
                     builder: (context, snapshot) {
                       final count = snapshot.data?.docs.length ?? 0;
@@ -126,7 +126,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                   child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
                         .collection('orders')
-                        .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
+                        .where('supplierId', isEqualTo: firebaseUser?.uid ?? '')
                         .where('lateOrder', isEqualTo: true)
                         .where('status', isEqualTo: 'LateOrderPending')
                         .snapshots(),
@@ -148,7 +148,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                   child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
                         .collection('orders')
-                        .where('vendorId', isEqualTo: firebaseUser?.uid ?? '')
+                        .where('supplierId', isEqualTo: firebaseUser?.uid ?? '')
                         .snapshots(),
                     builder: (context, snapshot) {
                       final docs = snapshot.data?.docs ?? [];
@@ -270,14 +270,14 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
     );
   }
 
-  Widget _buildLateOrdersTile(BuildContext context, String vendorId) {
+  Widget _buildLateOrdersTile(BuildContext context, String supplierId) {
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
     final todayEnd = todayStart.add(const Duration(days: 1));
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
           .collection('orders')
-          .where('vendorId', isEqualTo: vendorId)
+          .where('supplierId', isEqualTo: supplierId)
           .where('lateOrder', isEqualTo: true)
           .snapshots(),
       builder: (context, snapshot) {

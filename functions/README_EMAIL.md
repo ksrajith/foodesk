@@ -1,25 +1,25 @@
-# Sending registration emails from Cloud Functions
+# Sending transactional emails from Cloud Functions
 
-When an admin approves or rejects a registration, the Cloud Function `onRegistrationResponded` sends an email to the applicant.
+Emails (registration decisions, account status, late orders, admin password reset) are sent via the **Brevo Transactional Email REST API** (`POST https://api.brevo.com/v3/smtp/email`).
 
-## Configure SMTP (required for emails to send)
+## Configure Brevo (required for emails to send)
 
-Set environment variables for the function. Using **Gmail** as an example:
+Use a **Brevo API key** (Dashboard → **SMTP & API** → **API keys**), not the SMTP password, in the `api-key` sense. The sender address must be a **verified sender** (or domain) in Brevo.
 
-1. Use a Gmail account and create an [App Password](https://support.google.com/accounts/answer/185833) (2FA must be enabled).
-2. Set config (run from project root):
+This project uses Firebase **params** (`defineString`).
 
-   ```bash
-   firebase functions:config:set smtp.user="your-admin@gmail.com" smtp.pass="your-app-password"
-   ```
+Set params in Firebase Console:
 
-   Or set in Firebase Console → Functions → your project → Environment variables:
-   - `SMTP_USER` = your Gmail address
-   - `SMTP_PASS` = the app password
+1. Open Firebase Console → Build → Functions → select a function that sends mail (or deploy once so params appear).
+2. Under runtime variables / params, set:
+   - `BREVO_API_KEY` = your Brevo v3 API key
+   - `BREVO_SENDER_EMAIL` = verified sender email (e.g. `mymobileapp@outlook.com`)
+   - `BREVO_SENDER_NAME` = optional display name (default in code: `FoodDesk`)
+3. Deploy.
 
-3. Optional: `SMTP_HOST` (default `smtp.gmail.com`), `SMTP_PORT` (default `587`).
+For **local emulator / testing**, you can set the same names in `process.env` (`BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME`).
 
-If SMTP is not set, the function skips sending and logs a warning (approve/reject still works in the app).
+If Brevo is not configured, triggers skip sending and log a warning (approve/reject and other app logic still proceed where applicable).
 
 ## Deploy
 
@@ -34,8 +34,6 @@ firebase deploy --only functions
 
 ## Email content
 
-- **From:** Admin email (who approved/rejected), when available.
-- **Subject:**  
-  - Approved: "Your Food Desk Registration Request has Approved"  
-  - Rejected: "Your Food Desk Registration Request has Rejected"
-- **Body:** Role assigned by admin and admin comments.
+- **From:** `BREVO_SENDER_EMAIL` / `BREVO_SENDER_NAME` (registration emails use display name `FoodDesk Admin`).
+- **Reply-To:** Registration responses set reply-to to the admin email when present.
+- **Body:** Plain text via Brevo `textContent`.

@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 String normalizeRegistrationRole(String? role) {
   final r = (role ?? '').trim().toLowerCase();
   if (r == 'admin') return 'Admin';
-  if (r == 'supplier' || r == 'vendor') return 'Supplier';
+  if (r == 'supplier') return 'Supplier';
   return 'Customer';
 }
 

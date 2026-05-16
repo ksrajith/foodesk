@@ -8,6 +8,7 @@ import 'utils/fcm_utils.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_register_screen.dart';
 import 'screens/forgot_password_screen.dart';
+import 'screens/change_password_screen.dart';
 import 'screens/admin_dashboard.dart';
 import 'screens/admin_pending_registrations.dart';
 import 'screens/admin_registration_history.dart';
@@ -116,6 +117,11 @@ class MyApp extends StatelessWidget {
         '/splash': (context) => const SplashScreen(),
         '/': (context) => const LoginRegisterScreen(),
         '/forgot-password': (context) => const ForgotPasswordScreen(),
+        '/change-password': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments;
+          final forced = args is bool ? args : false;
+          return ChangePasswordScreen(isForced: forced);
+        },
         '/admin-dashboard': (context) => const AdminDashboard(),
         '/admin-pending-registrations': (context) => const AdminPendingRegistrations(),
         '/admin-registration-history': (context) => const AdminRegistrationHistoryScreen(),

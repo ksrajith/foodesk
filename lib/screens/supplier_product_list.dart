@@ -51,7 +51,7 @@ class _SupplierProductListState extends State<SupplierProductList> {
 
   @override
   Widget build(BuildContext context) {
-    final vendorId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final supplierId = FirebaseAuth.instance.currentUser?.uid ?? '';
 
     return Scaffold(
       appBar: AppBar(
@@ -99,7 +99,7 @@ class _SupplierProductListState extends State<SupplierProductList> {
           _buildMealTypeFilter(),
           Expanded(
             child: StreamBuilder<List<Product>>(
-              stream: _productRepository.streamProductsByVendor(vendorId),
+              stream: _productRepository.streamProductsBySupplier(supplierId),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());

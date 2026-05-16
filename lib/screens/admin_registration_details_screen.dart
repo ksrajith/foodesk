@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../core/app_constants.dart';
 import '../utils/date_time_utils.dart';
 import '../utils/registration_stats.dart';
@@ -36,6 +37,7 @@ class AdminRegistrationDetailsScreen extends StatefulWidget {
 
 class _AdminRegistrationDetailsScreenState extends State<AdminRegistrationDetailsScreen> {
   static const int _pageSize = 15;
+  static const String _resetPasswordValue = 'Fooddesk@123';
 
   late String _statusFilter;
   String? _roleFilter;
@@ -483,6 +485,16 @@ class _AdminRegistrationDetailsScreenState extends State<AdminRegistrationDetail
                         label: const Text('Deactivate'),
                         onPressed: () => _setStatus(context, uid, false, name, email),
                       ),
+                    TextButton.icon(
+                      icon: const Icon(Icons.lock_reset, size: 18),
+                      label: const Text('Reset password'),
+                      onPressed: () => _confirmAndResetPassword(
+                        context: context,
+                        userId: uid,
+                        userEmail: email,
+                        userName: name,
+                      ),
+                    ),
                   ],
                 )
               : isApproved
@@ -615,6 +627,82 @@ class _AdminRegistrationDetailsScreenState extends State<AdminRegistrationDetail
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _confirmAndResetPassword({
+    required BuildContext context,
+    required String userId,
+    required String userEmail,
+    required String userName,
+  }) async {
+    final email = userEmail.trim();
+    if (!email.contains('@')) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot reset password: user email is missing.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset password'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Reset password for $userName ($email)?'),
+            const SizedBox(height: 12),
+            const Text('Reset password value (read-only):'),
+            const SizedBox(height: 8),
+            TextField(
+              controller: TextEditingController(text: _resetPasswordValue),
+              readOnly: true,
+              enableInteractiveSelection: false,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'An email will be sent to this user with instructions to change password after login.',
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Reset')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      final callable = FirebaseFunctions.instance.httpsCallable('adminResetUserPassword');
+      await callable.call(<String, dynamic>{
+        'targetUserId': userId,
+        'targetEmail': email,
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Password reset to $_resetPasswordValue and email sent to $email.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Password reset failed.'), backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Password reset failed: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 }

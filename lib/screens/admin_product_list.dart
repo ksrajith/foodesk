@@ -161,7 +161,7 @@ class AdminProductList extends StatelessWidget {
                                     ),
                                     const SizedBox(width: 6),
                                     Text(
-                                      'Supplier: ${product['vendorName'] ?? 'Unknown'}',
+                                      'Supplier: ${product['supplierName'] ?? 'Unknown'}',
                                       style: TextStyle(
                                         fontSize: 13,
                                         color: Colors.teal.shade700,

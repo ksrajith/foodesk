@@ -50,7 +50,7 @@ class _SupplierOrderBeforeScreenState extends State<SupplierOrderBeforeScreen> {
     }
     try {
       final doc = await FirebaseFirestore.instance
-          .collection('vendor_config')
+          .collection('supplier_config')
           .doc(uid)
           .get();
       if (doc.exists && doc.data() != null) {
@@ -91,7 +91,7 @@ class _SupplierOrderBeforeScreenState extends State<SupplierOrderBeforeScreen> {
         'orderBeforeDinnerDeadlineBase': _orderBeforeDeadlineBase['Dinner']!,
       };
       await FirebaseFirestore.instance
-          .collection('vendor_config')
+          .collection('supplier_config')
           .doc(uid)
           .set(data, SetOptions(merge: true));
       if (!mounted) return;

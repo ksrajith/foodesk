@@ -122,9 +122,9 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
   /// True if Order Before deadline for the selected date and meal type has passed (late order path when date is today).
   Future<bool> _isLateOrder() async {
     final product = _selectedProduct ?? (_productsForSelectedMealType.isNotEmpty ? _productsForSelectedMealType.first : null);
-    final vendorId = product?['vendorId'] as String?;
-    if (vendorId == null || _selectedMealType == null) return false;
-    final deadline = await getOrderBeforeDeadline(vendorId, _selectedMealType!, _selectedDate);
+    final supplierId = product?['supplierId'] as String?;
+    if (supplierId == null || _selectedMealType == null) return false;
+    final deadline = await getOrderBeforeDeadline(supplierId, _selectedMealType!, _selectedDate);
     if (deadline == null) return false;
     return !DateTime.now().isBefore(deadline);
   }
@@ -311,8 +311,8 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
           'customerName': userProfile?['name'] ?? firebaseUser?.displayName ?? '',
           'productId': product['id'] ?? '',
           'productName': product['name'] ?? '',
-          'vendorId': product['vendorId'] ?? '',
-          'vendorName': product['vendorName'] ?? '',
+          'supplierId': product['supplierId'] ?? '',
+          'supplierName': product['supplierName'] ?? '',
           'quantity': quantity,
           'totalPrice': totalPrice,
           'status': 'Pending',
@@ -410,8 +410,8 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
         'customerEmail': customerEmail,
         'productId': product['id'] ?? '',
         'productName': product['name'] ?? '',
-        'vendorId': product['vendorId'] ?? '',
-        'vendorName': product['vendorName'] ?? '',
+        'supplierId': product['supplierId'] ?? '',
+        'supplierName': product['supplierName'] ?? '',
         'quantity': quantity,
         'totalPrice': totalPrice,
         'status': 'LateOrderPending',
@@ -441,10 +441,10 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
   /// Deadline applies only to the day before delivery (next-day rule).
   Widget _buildConfirmButton() {
     final product = _selectedProduct ?? (_productsForSelectedMealType.isNotEmpty ? _productsForSelectedMealType.first : null);
-    final vendorId = product?['vendorId'] as String?;
+    final supplierId = product?['supplierId'] as String?;
     final hasProducts = _productsForSelectedMealType.isNotEmpty;
 
-    if (vendorId == null || vendorId.isEmpty || _selectedMealType == null) {
+    if (supplierId == null || supplierId.isEmpty || _selectedMealType == null) {
       return ElevatedButton(
         onPressed: hasProducts ? _confirmOrder : null,
         style: ElevatedButton.styleFrom(
@@ -458,7 +458,7 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
 
     final fieldName = 'orderBefore$_selectedMealType';
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('vendor_config').doc(vendorId).snapshots(),
+      stream: FirebaseFirestore.instance.collection('supplier_config').doc(supplierId).snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || !snapshot.data!.exists) {
           return ElevatedButton(
@@ -484,7 +484,7 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
           );
         }
         return FutureBuilder<DateTime?>(
-          future: getOrderBeforeDeadline(vendorId, _selectedMealType!, _selectedDate),
+          future: getOrderBeforeDeadline(supplierId, _selectedMealType!, _selectedDate),
           builder: (context, deadlineSnap) {
             final deadline = deadlineSnap.data;
             final deadlinePassed = deadline != null && !DateTime.now().isBefore(deadline);
@@ -612,13 +612,13 @@ class _PlaceMealScreenState extends State<PlaceMealScreen> {
   /// Builds "Recommended Order Before" countdown from supplier config for selected meal type.
   Widget _buildOrderBeforeCountdown() {
     final product = _selectedProduct ?? (_productsForSelectedMealType.isNotEmpty ? _productsForSelectedMealType.first : null);
-    final vendorId = product?['vendorId'] as String?;
-    if (vendorId == null || vendorId.isEmpty || _selectedMealType == null) return const SizedBox.shrink();
+    final supplierId = product?['supplierId'] as String?;
+    if (supplierId == null || supplierId.isEmpty || _selectedMealType == null) return const SizedBox.shrink();
 
     final fieldName = 'orderBefore$_selectedMealType';
     final baseField = 'orderBefore${_selectedMealType}DeadlineBase';
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('vendor_config').doc(vendorId).snapshots(),
+      stream: FirebaseFirestore.instance.collection('supplier_config').doc(supplierId).snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || !snapshot.data!.exists) return const SizedBox.shrink();
         final data = snapshot.data!.data();

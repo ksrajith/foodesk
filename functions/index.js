@@ -1,14 +1,82 @@
 // Use v1 API explicitly so deploy/emulator can detect 1st gen backend (avoids load timeout / spec errors).
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
+const { defineString } = require("firebase-functions/params");
 
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-// Lazy-load nodemailer to avoid deployment timeout during initial load
-function getNodemailer() {
-  return require("nodemailer");
+// Lazy-load axios to avoid deployment timeout during initial load
+function getAxios() {
+  return require("axios");
+}
+
+function maskSecret(value) {
+  if (!value || typeof value !== "string") return "(empty)";
+  if (value.length <= 4) return "*".repeat(value.length);
+  return value.slice(0, 2) + "*".repeat(Math.max(1, value.length - 4)) + value.slice(-2);
+}
+
+// Brevo Transactional Email API (https://developers.brevo.com/reference/sendtransacemail)
+const BREVO_API_KEY_PARAM = defineString("BREVO_API_KEY", { default: "" });
+const BREVO_SENDER_EMAIL_PARAM = defineString("BREVO_SENDER_EMAIL", { default: "" });
+const BREVO_SENDER_NAME_PARAM = defineString("BREVO_SENDER_NAME", { default: "FoodDesk" });
+
+function getBrevoConfig() {
+  const rawKey = process.env.BREVO_API_KEY || BREVO_API_KEY_PARAM.value() || "";
+  const rawEmail = process.env.BREVO_SENDER_EMAIL || BREVO_SENDER_EMAIL_PARAM.value() || "";
+  const rawName = process.env.BREVO_SENDER_NAME || BREVO_SENDER_NAME_PARAM.value() || "FoodDesk";
+  // Trim: Firebase Console / copy-paste often adds accidental leading/trailing spaces (Brevo returns 401 "Key not found").
+  const apiKey = typeof rawKey === "string" ? rawKey.trim() : "";
+  const senderEmail = typeof rawEmail === "string" ? rawEmail.trim() : "";
+  const senderName = typeof rawName === "string" ? rawName.trim() || "FoodDesk" : "FoodDesk";
+  return { apiKey, senderEmail, senderName };
+}
+
+function isBrevoEmailConfigured() {
+  const { apiKey, senderEmail } = getBrevoConfig();
+  return Boolean(apiKey && senderEmail);
+}
+
+/**
+ * @param {{ to: string, subject: string, text: string, replyTo?: string, senderName?: string }} opts
+ * @returns {Promise<{ messageId?: string }>}
+ */
+async function sendBrevoEmail(opts) {
+  const { apiKey, senderEmail, senderName: defaultSenderName } = getBrevoConfig();
+  const senderName = opts.senderName || defaultSenderName;
+  const axios = getAxios();
+  const payload = {
+    sender: { email: senderEmail, name: senderName },
+    to: [{ email: opts.to }],
+    subject: opts.subject,
+    textContent: opts.text,
+  };
+  if (opts.replyTo && typeof opts.replyTo === "string" && opts.replyTo.includes("@")) {
+    payload.replyTo = { email: opts.replyTo };
+  }
+  const res = await axios.post("https://api.brevo.com/v3/smtp/email", payload, {
+    headers: {
+      "api-key": apiKey,
+      "Content-Type": "application/json",
+    },
+    validateStatus: () => true,
+  });
+  if (res.status < 200 || res.status >= 300) {
+    if (res.status === 401) {
+      console.warn(
+        "Brevo 401: use the REST API key from Brevo (Dashboard → SMTP & API → API keys), not the SMTP password. " +
+          "Re-copy the full key into BREVO_API_KEY. apiKeyLength:",
+        apiKey ? apiKey.length : 0
+      );
+    }
+    const err = new Error("Brevo API error: " + res.status + " " + JSON.stringify(res.data));
+    err.brevoStatus = res.status;
+    err.brevoBody = res.data;
+    throw err;
+  }
+  return { messageId: res.data && res.data.messageId };
 }
 
 /** Returns true if the value looks like a valid FCM device token. */
@@ -18,17 +86,39 @@ function isValidFcmToken(value) {
 
 /**
  * When a registration_requests document is updated and status is 'approved' or 'rejected',
- * send an email to the applicant. From = admin email, Subject and body as per requirement.
+ * send an email to the applicant (Brevo sender; reply-to admin when present).
  */
 exports.onRegistrationResponded = functions.firestore
   .document("registration_requests/{requestId}")
   .onUpdate(async (change, context) => {
+    const before = change.before.data();
     const after = change.after.data();
+    const beforeStatus = before && before.status;
     const status = after && after.status;
 
     if (status !== "approved" && status !== "rejected") {
       return null;
     }
+    // Only send when the status actually changes to an end-state.
+    if (beforeStatus === status) {
+      console.log(
+        "onRegistrationResponded: status unchanged, skipping email",
+        "requestId:",
+        context.params.requestId,
+        "status:",
+        status
+      );
+      return null;
+    }
+    console.log(
+      "onRegistrationResponded: trigger detected",
+      "requestId:",
+      context.params.requestId,
+      "fromStatus:",
+      beforeStatus || "(none)",
+      "toStatus:",
+      status
+    );
 
     const toEmail = after.email;
     if (!toEmail || typeof toEmail !== "string" || !toEmail.includes("@")) {
@@ -37,7 +127,9 @@ exports.onRegistrationResponded = functions.firestore
     }
 
     const adminEmail = after.respondedByEmail || "";
-    const role = after.approvedRole || (status === "approved" ? "Customer" : "");
+    const adminName = after.respondedByName || "";
+    const requestedRole = after.requestedRole || "Customer";
+    const approvedRole = after.approvedRole || (status === "approved" ? "Customer" : "");
     const comment = after.adminComment || "";
 
     const subject =
@@ -45,52 +137,80 @@ exports.onRegistrationResponded = functions.firestore
         ? "Your Food Desk Registration Request has Approved"
         : "Your Food Desk Registration Request has Rejected";
 
+    const actionLabel = status === "approved" ? "Approved" : "Rejected";
     const bodyLines = [
       status === "approved"
         ? "Your Food Desk registration request has been approved."
         : "Your Food Desk registration request has been rejected.",
       "",
-      "Role: " + (role || "—"),
+      "Requested Role: " + (requestedRole || "—"),
+      status === "approved"
+        ? "Approved Role: " + (approvedRole || "—")
+        : "",
+      "",
+      actionLabel + " by Email: " + (adminEmail || "—"),
+      actionLabel + " by Name: " + (adminName || "—"),
       "",
       comment ? "Comment from admin:\n" + comment : "",
     ];
     const text = bodyLines.filter(Boolean).join("\n");
 
-    // Use SMTP from Firebase config (firebase functions:config:set smtp.user=... smtp.pass=...) or env
-    const config = functions.config();
-    const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER || (config.smtp && config.smtp.user);
-    const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || (config.smtp && config.smtp.pass);
-    const smtpHost = process.env.SMTP_HOST || (config.smtp && config.smtp.host) || "smtp.gmail.com";
-    const smtpPort = parseInt(process.env.SMTP_PORT || (config.smtp && config.smtp.port) || "587", 10);
-    const fromEmail = adminEmail || smtpUser || "noreply@fooddesk.com";
+    const { apiKey, senderEmail, senderName } = getBrevoConfig();
+    console.log(
+      "onRegistrationResponded: Brevo resolved",
+      "toEmail:",
+      toEmail,
+      "senderEmail:",
+      senderEmail || "(empty)",
+      "senderName:",
+      senderName,
+      "apiKeyMasked:",
+      maskSecret(apiKey)
+    );
 
-    if (!smtpUser || !smtpPass) {
+    if (!isBrevoEmailConfigured()) {
       console.warn(
-        "onRegistrationResponded: SMTP not configured. Set SMTP_USER and SMTP_PASS (or GMAIL_USER and GMAIL_APP_PASSWORD) in Firebase config or env."
+        "onRegistrationResponded: Brevo not configured. Set BREVO_API_KEY and BREVO_SENDER_EMAIL as Firebase params (or env)."
       );
       return null;
     }
 
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpPort === 465,
-      auth: { user: smtpUser, pass: smtpPass },
-    });
-
-    const mailOptions = {
-      from: `"FoodDesk Admin" <${fromEmail}>`,
-      to: toEmail,
-      replyTo: adminEmail || undefined,
-      subject,
-      text,
-    };
-
     try {
-      await transporter.sendMail(mailOptions);
-      console.log("Registration email sent to", toEmail, "status:", status);
+      const info = await sendBrevoEmail({
+        to: toEmail,
+        subject,
+        text,
+        replyTo: adminEmail || undefined,
+        senderName: "FoodDesk Admin",
+      });
+      console.log(
+        "onRegistrationResponded: email sent",
+        "requestId:",
+        context.params.requestId,
+        "toEmail:",
+        toEmail,
+        "status:",
+        status,
+        "messageId:",
+        (info && info.messageId) || "(none)"
+      );
     } catch (err) {
-      console.error("Failed to send registration email:", err);
+      const e = err || {};
+      console.error(
+        "onRegistrationResponded: email send failed",
+        "requestId:",
+        context.params.requestId,
+        "toEmail:",
+        toEmail,
+        "status:",
+        status,
+        "brevoStatus:",
+        e.brevoStatus || "(none)",
+        "brevoBody:",
+        e.brevoBody != null ? JSON.stringify(e.brevoBody) : "(none)",
+        "message:",
+        e.message || String(err)
+      );
       throw err;
     }
 
@@ -118,23 +238,10 @@ exports.onUserAccountStatusChanged = functions.firestore
       return null;
     }
 
-    const config = functions.config();
-    const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER || (config.smtp && config.smtp.user);
-    const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || (config.smtp && config.smtp.pass);
-    const smtpHost = process.env.SMTP_HOST || (config.smtp && config.smtp.host) || "smtp.gmail.com";
-    const smtpPort = parseInt(process.env.SMTP_PORT || (config.smtp && config.smtp.port) || "587", 10);
-
-    if (!smtpUser || !smtpPass) {
-      console.warn("onUserAccountStatusChanged: SMTP not configured. Skipping email.");
+    if (!isBrevoEmailConfigured()) {
+      console.warn("onUserAccountStatusChanged: Brevo not configured. Skipping email.");
       return null;
     }
-
-    const transporter = getNodemailer().createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpPort === 465,
-      auth: { user: smtpUser, pass: smtpPass },
-    });
 
     let subject, text;
     if (afterStatus === "Deactivated") {
@@ -154,12 +261,7 @@ exports.onUserAccountStatusChanged = functions.firestore
     }
 
     try {
-      await transporter.sendMail({
-        from: `"FoodDesk" <${smtpUser}>`,
-        to: toEmail,
-        subject,
-        text,
-      });
+      await sendBrevoEmail({ to: toEmail, subject, text });
       console.log("Account status email sent to", toEmail, "status:", afterStatus);
     } catch (err) {
       console.error("Failed to send account status email:", err);
@@ -167,21 +269,6 @@ exports.onUserAccountStatusChanged = functions.firestore
     }
     return null;
   });
-
-function getSmtpTransporter() {
-  const config = functions.config();
-  const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER || (config.smtp && config.smtp.user);
-  const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || (config.smtp && config.smtp.pass);
-  const smtpHost = process.env.SMTP_HOST || (config.smtp && config.smtp.host) || "smtp.gmail.com";
-  const smtpPort = parseInt(process.env.SMTP_PORT || (config.smtp && config.smtp.port) || "587", 10);
-  if (!smtpUser || !smtpPass) return null;
-  return getNodemailer().createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpPort === 465,
-    auth: { user: smtpUser, pass: smtpPass },
-  });
-}
 
 exports.onLateOrderCreated = functions.firestore
   .document("orders/{orderId}")
@@ -196,28 +283,28 @@ exports.onLateOrderCreated = functions.firestore
     if (!data || !isLateOrder) {
       return null;
     }
-    const vendorId = data.vendorId;
+    const supplierId = data.supplierId;
     const orderId = context.params.orderId;
-    if (!vendorId) {
-      console.warn("onLateOrderCreated: missing vendorId on order", orderId);
+    if (!supplierId) {
+      console.warn("onLateOrderCreated: missing supplierId on order", orderId);
       return null;
     }
 
-    // Send FCM to vendor: use BOTH notification + data.
+    // Send FCM to supplier: use BOTH notification + data.
     // Data-only messages often do not show in the system tray when the app is backgrounded/killed on Android;
     // customer late-order responses already use notification + channelId for reliable delivery.
     try {
-      const userSnap = await admin.firestore().collection("users").doc(vendorId).get();
-      const vendorData = userSnap.exists && userSnap.data() ? userSnap.data() : null;
-      const fcmToken = vendorData && vendorData.fcmToken;
+      const userSnap = await admin.firestore().collection("users").doc(supplierId).get();
+      const supplierData = userSnap.exists && userSnap.data() ? userSnap.data() : null;
+      const fcmToken = supplierData && supplierData.fcmToken;
       if (!fcmToken) {
         console.warn(
-          "onLateOrderCreated: no fcmToken for vendor",
-          vendorId,
+          "onLateOrderCreated: no fcmToken for supplier",
+          supplierId,
           "- supplier must open the app and allow notifications so the token is saved to users/{uid}"
         );
       } else if (!isValidFcmToken(fcmToken)) {
-        console.warn("onLateOrderCreated: invalid fcmToken for vendor", vendorId);
+        console.warn("onLateOrderCreated: invalid fcmToken for supplier", supplierId);
       } else {
         const title = "New late order";
         const body =
@@ -250,23 +337,22 @@ exports.onLateOrderCreated = functions.firestore
             },
           },
         });
-        console.log("Late order FCM sent to vendor", vendorId);
+        console.log("Late order FCM sent to supplier", supplierId);
       }
     } catch (fcmErr) {
-      console.warn("onLateOrderCreated: FCM to vendor failed", fcmErr);
+      console.warn("onLateOrderCreated: FCM to supplier failed", fcmErr);
     }
 
-    // Email to vendor (if SMTP configured)
-    let vendorEmail = "";
+    // Email to supplier (if SMTP configured)
+    let supplierEmail = "";
     try {
-      const userSnap = await admin.firestore().collection("users").doc(vendorId).get();
-      if (userSnap.exists && userSnap.data() && userSnap.data().email) vendorEmail = userSnap.data().email;
+      const userSnap = await admin.firestore().collection("users").doc(supplierId).get();
+      if (userSnap.exists && userSnap.data() && userSnap.data().email) supplierEmail = userSnap.data().email;
     } catch (e) {
-      console.warn("onLateOrderCreated: could not get vendor email", e);
+      console.warn("onLateOrderCreated: could not get supplier email", e);
     }
-    if (vendorEmail && vendorEmail.includes("@")) {
-      const transporter = getSmtpTransporter();
-      if (transporter) {
+    if (supplierEmail && supplierEmail.includes("@")) {
+      if (isBrevoEmailConfigured()) {
         const text = [
           "A new late meal reservation requires your approval.",
           "",
@@ -281,13 +367,12 @@ exports.onLateOrderCreated = functions.firestore
           .filter(Boolean)
           .join("\n");
         try {
-          await transporter.sendMail({
-            from: process.env.SMTP_USER || (functions.config().smtp && functions.config().smtp.user) || "noreply@fooddesk.com",
-            to: vendorEmail,
+          await sendBrevoEmail({
+            to: supplierEmail,
             subject: "FoodDesk: New late order awaiting your approval",
             text,
           });
-          console.log("Late order email sent to vendor", vendorEmail);
+          console.log("Late order email sent to supplier", supplierEmail);
         } catch (err) {
           console.error("onLateOrderCreated: email send failed", err);
         }
@@ -308,7 +393,7 @@ exports.onLateOrderResponded = functions.firestore
     const toEmail = after.customerEmail;
     const customerId = after.customerId;
     const productName = after.productName || "your order";
-    const vendorComment = after.vendorComment || "";
+    const supplierComment = after.supplierComment || "";
 
     // Send push notification to customer if we have a valid FCM token
     if (customerId && typeof customerId === "string") {
@@ -325,8 +410,8 @@ exports.onLateOrderResponded = functions.firestore
             ? "Late order approved"
             : "Late order not accepted";
           const body = isApproved
-            ? productName + " – Your late reservation was approved by the vendor."
-            : (productName + (vendorComment ? " – " + vendorComment : " – Your late reservation could not be accepted."));
+            ? productName + " – Your late reservation was approved by the supplier."
+            : (productName + (supplierComment ? " – " + supplierComment : " – Your late reservation could not be accepted."));
           await admin.messaging().send({
             token: fcmToken,
             notification: { title, body },
@@ -351,19 +436,18 @@ exports.onLateOrderResponded = functions.firestore
       console.warn("onLateOrderResponded: no customer email on order", context.params.orderId);
       return null;
     }
-    const transporter = getSmtpTransporter();
-    if (!transporter) {
-      console.warn("onLateOrderResponded: SMTP not configured.");
+    if (!isBrevoEmailConfigured()) {
+      console.warn("onLateOrderResponded: Brevo not configured.");
       return null;
     }
     let subject, text;
     if (afterStatus === "Pending") {
       subject = "Your late meal reservation was approved";
       text = [
-        "Good news! Your late meal reservation has been approved by the vendor.",
+        "Good news! Your late meal reservation has been approved by the supplier.",
         "",
         "Order: " + productName,
-        vendorComment ? "Vendor note: " + vendorComment : "",
+        supplierComment ? "supplier note: " + supplierComment : "",
         "",
         "It will be fulfilled as normal.",
       ]
@@ -375,14 +459,13 @@ exports.onLateOrderResponded = functions.firestore
         "Your late meal reservation could not be accepted.",
         "",
         "Order: " + productName,
-        vendorComment ? "Reason: " + vendorComment : "",
+        supplierComment ? "Reason: " + supplierComment : "",
       ]
         .filter(Boolean)
         .join("\n");
     }
     try {
-      await transporter.sendMail({
-        from: process.env.SMTP_USER || (functions.config().smtp && functions.config().smtp.user) || "noreply@fooddesk.com",
+      await sendBrevoEmail({
         to: toEmail,
         subject: "FoodDesk: " + subject,
         text,
@@ -435,4 +518,80 @@ exports.sendTestNotification = functions.https.onCall(async (data, context) => {
   });
   console.log("Test notification sent to user", uid);
   return { success: true, message: "Test notification sent." };
+});
+
+const TEMP_RESET_PASSWORD = "Fooddesk@123";
+
+/**
+ * Callable (admin only): reset a user's password to TEMP_RESET_PASSWORD,
+ * mark that user to change password on next login, and send notification email.
+ */
+exports.adminResetUserPassword = functions.https.onCall(async (data, context) => {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Must be logged in.");
+  }
+
+  const adminUid = context.auth.uid;
+  const adminUserDoc = await admin.firestore().collection("users").doc(adminUid).get();
+  const adminData = adminUserDoc.exists ? adminUserDoc.data() : null;
+  const adminRole = (adminData && adminData.role ? String(adminData.role) : "").toLowerCase();
+  if (adminRole !== "admin") {
+    throw new functions.https.HttpsError("permission-denied", "Only admin can reset passwords.");
+  }
+
+  const targetUserId = data && typeof data.targetUserId === "string" ? data.targetUserId.trim() : "";
+  const targetEmail = data && typeof data.targetEmail === "string" ? data.targetEmail.trim() : "";
+  if (!targetUserId || !targetEmail || !targetEmail.includes("@")) {
+    throw new functions.https.HttpsError("invalid-argument", "targetUserId and valid targetEmail are required.");
+  }
+  if (targetUserId === adminUid) {
+    throw new functions.https.HttpsError("failed-precondition", "You cannot reset your own password.");
+  }
+
+  try {
+    const userRecord = await admin.auth().getUser(targetUserId);
+    const emailOnAuth = (userRecord.email || "").toLowerCase();
+    if (emailOnAuth && emailOnAuth !== targetEmail.toLowerCase()) {
+      throw new functions.https.HttpsError("failed-precondition", "Selected email does not match the auth account email.");
+    }
+
+    await admin.auth().updateUser(targetUserId, { password: TEMP_RESET_PASSWORD });
+    await admin.firestore().collection("users").doc(targetUserId).set(
+      {
+        mustChangePassword: true,
+        passwordResetAt: admin.firestore.FieldValue.serverTimestamp(),
+        passwordResetBy: adminUid,
+        passwordResetByEmail: context.auth.token.email || "",
+      },
+      { merge: true }
+    );
+    await admin.firestore().collection("audit_log").add({
+      action: "reset_password",
+      targetUserId,
+      targetEmail,
+      byAdminId: adminUid,
+      byAdminEmail: context.auth.token.email || "",
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    if (isBrevoEmailConfigured()) {
+      const subject = "FoodDesk password reset by admin";
+      const text = [
+        "Your FoodDesk password has been reset by an administrator.",
+        "",
+        "Temporary password: " + TEMP_RESET_PASSWORD,
+        "",
+        "Please sign in with this temporary password, then change your password immediately.",
+      ].join("\n");
+      await sendBrevoEmail({ to: targetEmail, subject, text });
+    } else {
+      console.warn("adminResetUserPassword: Brevo not configured, password reset completed without email.");
+    }
+
+    return { success: true };
+  } catch (err) {
+    if (err instanceof functions.https.HttpsError) throw err;
+    console.error("adminResetUserPassword failed", err);
+    throw new functions.https.HttpsError("internal", "Password reset failed.");
+  }
 });

@@ -264,8 +264,8 @@ class CustomerOrderDetailScreen extends StatelessWidget {
       await addToPool(
         productId: order['productId'] as String? ?? '',
         productName: order['productName'] as String? ?? '',
-        vendorId: order['vendorId'] as String? ?? '',
-        vendorName: order['vendorName'] as String? ?? '',
+        supplierId: order['supplierId'] as String? ?? '',
+        supplierName: order['supplierName'] as String? ?? '',
         mealType: order['mealType'] as String? ?? '—',
         quantity: qty,
         pricePerUnit: pricePerUnit,

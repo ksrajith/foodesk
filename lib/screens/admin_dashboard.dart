@@ -477,7 +477,7 @@ class AdminDashboard extends StatelessWidget {
             for (final d in snapshot.data!.docs) {
               final role = ((d.data()['role'] as String?) ?? 'Customer').toLowerCase();
               if (role == 'admin') admins++;
-              else if (role == 'vendor' || role == 'supplier') suppliers++;
+              else if (role == 'supplier') suppliers++;
               else customers++;
             }
           }
@@ -532,7 +532,7 @@ class AdminDashboard extends StatelessWidget {
             for (final d in snapshot.data!.docs) {
               final role = (d.data()['requestedRole'] as String?) ?? 'Customer';
               if (role == 'Admin') admins++;
-              else if (role == 'Vendor' || role == 'Supplier') suppliers++;
+              else if (role == 'Supplier') suppliers++;
               else customers++;
             }
           }
@@ -582,7 +582,7 @@ class AdminDashboard extends StatelessWidget {
   static void _showPendingListByRole(BuildContext context, String role) {
     final title = role == 'Customer'
         ? 'Customers waiting for approval'
-        : role == 'Vendor' || role == 'Supplier'
+        : role == 'Supplier'
             ? 'Suppliers waiting for approval'
             : 'Admins waiting for approval';
     showDialog(
@@ -601,7 +601,7 @@ class AdminDashboard extends StatelessWidget {
               final docs = snapshot.data!.docs
                   .where((d) {
                     final r = (d.data()['requestedRole'] as String?) ?? 'Customer';
-                    if (role == 'Supplier') return r == 'Vendor' || r == 'Supplier';
+                    if (role == 'Supplier') return r == 'Supplier';
                     return r == role;
                   })
                   .toList();

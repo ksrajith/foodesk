@@ -15,7 +15,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 //
 // Notes:
 // - Provide credentials for a Supplier per security rules.
-// - The script creates/updates users/{uid} with role 'Supplier', then writes products with vendorId = uid.
+// - The script creates/updates users/{uid} with role 'Supplier', then writes products with supplierId = uid.
 // - Set SEED_ORDERS=true to also create a sample order for the signed-in user (acts as customer).
 
 const seedEmail = String.fromEnvironment('SEED_EMAIL');
@@ -109,8 +109,8 @@ Future<void> main() async {
       'name': 'Fried rice set menu chicken',
       'description': 'Delicious fried rice with tender chicken pieces, vegetables, and special sauce',
       'price': 450.00,
-      'vendorId': '2',
-      'vendorName': 'John Vendor',
+      'supplierId': '2',
+      'supplierName': 'John Vendor',
       'stock': 20,
       'image': '',
     },
@@ -119,8 +119,8 @@ Future<void> main() async {
       'name': 'Fried rice set menu fish',
       'description': 'Savory fried rice with fresh fish, mixed vegetables, and aromatic spices',
       'price': 500.00,
-      'vendorId': '2',
-      'vendorName': 'John Vendor',
+      'supplierId': '2',
+      'supplierName': 'John Vendor',
       'stock': 18,
       'image': '',
     },
@@ -129,8 +129,8 @@ Future<void> main() async {
       'name': 'Fried rice set menu vegetable',
       'description': 'Healthy fried rice packed with fresh seasonal vegetables and herbs',
       'price': 400.00,
-      'vendorId': '2',
-      'vendorName': 'John Vendor',
+      'supplierId': '2',
+      'supplierName': 'John Vendor',
       'stock': 25,
       'image': 'assets/ProductImages/Fried rice set menu vegitable.png',
     },
@@ -139,8 +139,8 @@ Future<void> main() async {
       'name': 'Rice and curry chicken',
       'description': 'Traditional rice and curry with succulent chicken curry and side dishes',
       'price': 550.00,
-      'vendorId': '2',
-      'vendorName': 'John Vendor',
+      'supplierId': '2',
+      'supplierName': 'John Vendor',
       'stock': 22,
       'image': '',
     },
@@ -149,8 +149,8 @@ Future<void> main() async {
       'name': 'Rice and curry fish',
       'description': 'Authentic rice and curry with flavorful fish curry and accompaniments',
       'price': 600.00,
-      'vendorId': '2',
-      'vendorName': 'John Vendor',
+      'supplierId': '2',
+      'supplierName': 'John Vendor',
       'stock': 15,
       'image': '',
     },
@@ -159,8 +159,8 @@ Future<void> main() async {
       'name': 'Rice and curry vegetable',
       'description': 'Wholesome rice and curry with mixed vegetable curries and condiments',
       'price': 450.00,
-      'vendorId': '2',
-      'vendorName': 'John Vendor',
+      'supplierId': '2',
+      'supplierName': 'John Vendor',
       'stock': 30,
       'image': '',
     },
@@ -169,8 +169,8 @@ Future<void> main() async {
       'name': 'Rice and curry egg',
       'description': 'Classic rice and curry with perfectly cooked egg curry and side dishes',
       'price': 400.00,
-      'vendorId': '2',
-      'vendorName': 'John Vendor',
+      'supplierId': '2',
+      'supplierName': 'John Vendor',
       'stock': 28,
       'image': '',
     },
@@ -183,10 +183,10 @@ Future<void> main() async {
       'name': p['name'],
       'description': p['description'],
       'price': p['price'],
-      // Write vendorId as the signed-in vendor's UID to satisfy security rules
-      'vendorId': uid,
+      // Write supplierId as the signed-in supplier's UID to satisfy security rules
+      'supplierId': uid,
       // Use the supplier's email (or keep demo name if present)
-      'vendorName': p['vendorName'] ?? (currentEmail ?? 'Supplier'),
+      'supplierName': p['supplierName'] ?? (currentEmail ?? 'Supplier'),
       'stock': p['stock'],
       'image': p['image'],
     };
@@ -209,8 +209,8 @@ Future<void> main() async {
       'customerName': FirebaseAuth.instance.currentUser!.email ?? 'Seeder',
       'productId': firstProduct['id']?.toString() ?? '',
       'productName': firstProduct['name'] ?? '',
-      'vendorId': firstProduct['vendorId'] ?? '',
-      'vendorName': firstProduct['vendorName'] ?? '',
+      'supplierId': firstProduct['supplierId'] ?? '',
+      'supplierName': firstProduct['supplierName'] ?? '',
       'quantity': 1,
       'totalPrice': totalPrice,
       'status': 'Pending',

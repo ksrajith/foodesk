@@ -13,6 +13,7 @@ class AppConstants {
   static const String routeSplash = '/splash';
   static const String routeLogin = '/';
   static const String routeForgotPassword = '/forgot-password';
+  static const String routeChangePassword = '/change-password';
   static const String routeAdminDashboard = '/admin-dashboard';
   static const String routeAdminPendingRegistrations = '/admin-pending-registrations';
   static const String routeAdminRegistrationHistory = '/admin-registration-history';

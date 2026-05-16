@@ -10,10 +10,15 @@ class AdminPendingRegistrations extends StatelessWidget {
   static String _normalizeRole(String? role) {
     final r = (role ?? '').trim().toLowerCase();
     if (r == 'admin') return 'Admin';
-    if (r == 'supplier' || r == 'vendor') return 'Supplier';
+    if (r == 'supplier') return 'Supplier';
     if (r == 'customer' || r == 'user') return 'Customer';
     // Default/fallback so we never write an invalid role.
     return 'Customer';
+  }
+
+  /// Role the applicant asked for at signup (from request doc). Used on reject so email always has a value.
+  static String requestedRoleFromRequestData(Map<String, dynamic> data) {
+    return _normalizeRole(data['requestedRole'] as String?);
   }
 
   @override
@@ -91,69 +96,14 @@ class AdminPendingRegistrations extends StatelessWidget {
 
     showDialog(
       context: scaffoldContext,
-      builder: (ctx) => StatefulBuilder(
-        builder: (dialogBuildContext, setDialogState) {
-          return AlertDialog(
-            title: const Text('Registration approval'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Registration email', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  const SizedBox(height: 4),
-                  Text(email, style: const TextStyle(fontSize: 16)),
-                  if (name.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(name, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
-                  ],
-                  const SizedBox(height: 16),
-                  const Text('User role', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    value: selectedRole,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                    items: _roles.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
-                    onChanged: (v) {
-                      if (v != null) setDialogState(() => selectedRole = _normalizeRole(v));
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  const Text('Comment (optional)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: commentController,
-                    maxLines: 3,
-                    decoration: InputDecoration(
-                      hintText: 'Add a comment for the user...',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogBuildContext),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => _respondStatic(dialogBuildContext, scaffoldContext, requestId, data, false, _normalizeRole(selectedRole), commentController.text),
-                child: Text('Reject', style: TextStyle(color: Colors.red.shade700)),
-              ),
-              ElevatedButton(
-                onPressed: () => _respondStatic(dialogBuildContext, scaffoldContext, requestId, data, true, _normalizeRole(selectedRole), commentController.text),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade600),
-                child: const Text('Approve'),
-              ),
-            ],
-          );
-        },
+      builder: (ctx) => _ApprovalDialogContent(
+        scaffoldContext: scaffoldContext,
+        requestId: requestId,
+        data: data,
+        email: email,
+        name: name,
       ),
-    ).then((_) => commentController.dispose());
+    );
   }
 
   static Future<void> _respondStatic(
@@ -172,7 +122,7 @@ class AdminPendingRegistrations extends StatelessWidget {
     try {
       // Ensure any open dropdown/menu overlay is closed.
       FocusManager.instance.primaryFocus?.unfocus();
-      await FirebaseFirestore.instance.collection('registration_requests').doc(requestId).update({
+      final update = <String, dynamic>{
         'status': approve ? 'approved' : 'rejected',
         'approvedRole': approve ? normalizedRole : null,
         'adminComment': comment.isEmpty ? null : comment,
@@ -180,7 +130,12 @@ class AdminPendingRegistrations extends StatelessWidget {
         'respondedBy': adminUid,
         'respondedByName': adminName,
         'respondedByEmail': adminEmail,
-      });
+      };
+      // On reject, persist requestedRole from signup (not the admin dropdown) so Cloud Function email matches.
+      if (!approve) {
+        update['requestedRole'] = requestedRoleFromRequestData(data);
+      }
+      await FirebaseFirestore.instance.collection('registration_requests').doc(requestId).update(update);
       if (!dialogContext.mounted) return;
       Navigator.of(dialogContext, rootNavigator: true).pop();
       // Defer SnackBar to next frame to avoid _dependents.isEmpty assertion when
@@ -230,7 +185,7 @@ class AdminPendingRegistrations extends StatelessWidget {
     final adminEmail = FirebaseAuth.instance.currentUser?.email ?? '';
 
     try {
-      await FirebaseFirestore.instance.collection('registration_requests').doc(requestId).update({
+      final update = <String, dynamic>{
         'status': approve ? 'approved' : 'rejected',
         'approvedRole': approve ? role : null,
         'adminComment': comment.isEmpty ? null : comment,
@@ -238,7 +193,11 @@ class AdminPendingRegistrations extends StatelessWidget {
         'respondedBy': adminUid,
         'respondedByName': adminName,
         'respondedByEmail': adminEmail,
-      });
+      };
+      if (!approve) {
+        update['requestedRole'] = requestedRoleFromRequestData(data);
+      }
+      await FirebaseFirestore.instance.collection('registration_requests').doc(requestId).update(update);
 
       if (!dialogContext.mounted) return;
       Navigator.pop(dialogContext);
@@ -258,5 +217,122 @@ class AdminPendingRegistrations extends StatelessWidget {
         );
       }
     }
+  }
+}
+
+class _ApprovalDialogContent extends StatefulWidget {
+  const _ApprovalDialogContent({
+    required this.scaffoldContext,
+    required this.requestId,
+    required this.data,
+    required this.email,
+    required this.name,
+  });
+
+  final BuildContext scaffoldContext;
+  final String requestId;
+  final Map<String, dynamic> data;
+  final String email;
+  final String name;
+
+  @override
+  State<_ApprovalDialogContent> createState() => _ApprovalDialogContentState();
+}
+
+class _ApprovalDialogContentState extends State<_ApprovalDialogContent> {
+  late final TextEditingController _commentController;
+  late String _selectedRole;
+
+  @override
+  void initState() {
+    super.initState();
+    _commentController = TextEditingController();
+    _selectedRole = AdminPendingRegistrations._normalizeRole(widget.data['requestedRole'] as String?);
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Registration approval'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Registration email', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            const SizedBox(height: 4),
+            Text(widget.email, style: const TextStyle(fontSize: 16)),
+            if (widget.name.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(widget.name, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+            ],
+            const SizedBox(height: 16),
+            const Text('User role', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: _selectedRole,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              items: AdminPendingRegistrations._roles.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+              onChanged: (v) {
+                if (v != null) {
+                  setState(() => _selectedRole = AdminPendingRegistrations._normalizeRole(v));
+                }
+              },
+            ),
+            const SizedBox(height: 16),
+            const Text('Comment (optional)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _commentController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Add a comment for the user...',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => AdminPendingRegistrations._respondStatic(
+            context,
+            widget.scaffoldContext,
+            widget.requestId,
+            widget.data,
+            false,
+            AdminPendingRegistrations._normalizeRole(_selectedRole),
+            _commentController.text,
+          ),
+          child: Text('Reject', style: TextStyle(color: Colors.red.shade700)),
+        ),
+        ElevatedButton(
+          onPressed: () => AdminPendingRegistrations._respondStatic(
+            context,
+            widget.scaffoldContext,
+            widget.requestId,
+            widget.data,
+            true,
+            AdminPendingRegistrations._normalizeRole(_selectedRole),
+            _commentController.text,
+          ),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade600),
+          child: const Text('Approve'),
+        ),
+      ],
+    );
   }
 }

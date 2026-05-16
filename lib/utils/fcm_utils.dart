@@ -64,8 +64,8 @@ Future<void> _executeApproveOrder(String orderId, String? productId, int quantit
       }
       txn.update(FirebaseFirestore.instance.collection('orders').doc(orderId), {
         'status': 'Pending',
-        'vendorRespondedAt': FieldValue.serverTimestamp(),
-        'vendorComment': null,
+        'supplierRespondedAt': FieldValue.serverTimestamp(),
+        'supplierComment': null,
       });
     });
   } catch (_) {}
@@ -75,8 +75,8 @@ Future<void> _executeRejectOrder(String orderId) async {
   try {
     await FirebaseFirestore.instance.collection('orders').doc(orderId).update({
       'status': 'Rejected',
-      'vendorRespondedAt': FieldValue.serverTimestamp(),
-      'vendorComment': null,
+      'supplierRespondedAt': FieldValue.serverTimestamp(),
+      'supplierComment': null,
     });
   } catch (_) {}
 }
@@ -154,7 +154,7 @@ Future<void> showLateOrderNotification({
   await _localNotifications.show(id, title, body, details, payload: payloadJson);
 }
 
-/// Returns true if the FCM data message is a late-order-pending for the vendor.
+/// Returns true if the FCM data message is a late-order-pending for the supplier.
 bool isLateOrderPendingMessage(Map<String, dynamic>? data) {
   return data != null && data['type'] == 'late_order_pending';
 }
