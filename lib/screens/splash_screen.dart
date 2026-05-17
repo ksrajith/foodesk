@@ -12,6 +12,11 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    _goToLoginAfterDelay();
+  }
+
+  /// Brief logo display, then open login/register screen.
+  void _goToLoginAfterDelay() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 1500), () {
         if (!mounted) return;

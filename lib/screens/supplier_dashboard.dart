@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/fcm_utils.dart';
+import '../utils/screen_helpers.dart';
 
-/// Supplier home: refreshes FCM token like customer dashboard so Cloud Functions can send late-order pushes.
+/// Supplier home: menu, orders, late orders. Refreshes FCM for push notifications.
 class SupplierDashboard extends StatefulWidget {
   const SupplierDashboard({Key? key}) : super(key: key);
 
@@ -32,11 +33,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              // ignore: use_build_context_synchronously
-              Navigator.pushReplacementNamed(context, '/');
-            },
+            onPressed: () => signOutAndGoToLogin(context),
           ),
         ],
       ),

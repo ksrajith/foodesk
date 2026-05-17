@@ -143,7 +143,7 @@ exports.onRegistrationResponded = functions.firestore
         ? "Your Food Desk registration request has been approved."
         : "Your Food Desk registration request has been rejected.",
       "",
-      "Requested Role: " + (requestedRole || "—"),
+      "Requested Role: " + requestedRole,
       status === "approved"
         ? "Approved Role: " + (approvedRole || "—")
         : "",

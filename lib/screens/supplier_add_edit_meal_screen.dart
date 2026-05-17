@@ -8,6 +8,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
+/// Supplier form to create or edit a meal (image, stock, meal types, order-before time).
+
 /// Meal types that can be selected (one or more per meal).
 const List<String> kMealTypeOptions = ['Breakfast', 'Lunch', 'Dinner'];
 

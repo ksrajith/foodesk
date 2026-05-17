@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'admin_registration_history.dart';
 import '../utils/app_settings.dart';
 
+/// Admin settings: app toggles, user management, registration history link.
 class AdminSettingsScreen extends StatefulWidget {
   const AdminSettingsScreen({Key? key}) : super(key: key);
 

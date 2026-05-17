@@ -6,6 +6,8 @@ import '../utils/app_settings.dart';
 import '../utils/pool_utils.dart';
 import '../widgets/order_before_countdown.dart';
 
+/// Customer flow: pick meal type, product, quantity, and place an order.
+
 const List<String> kMealTypes = ['Breakfast', 'Lunch', 'Dinner'];
 
 class PlaceMealScreen extends StatefulWidget {

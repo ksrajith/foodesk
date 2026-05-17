@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../utils/admin_report_pdf.dart';
 
+/// Supplier aggregated order counts by date range; export PDF.
 class SupplierOrderSummary extends StatefulWidget {
   const SupplierOrderSummary({Key? key}) : super(key: key);
 

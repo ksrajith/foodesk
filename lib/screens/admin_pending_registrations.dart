@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Lists pending `registration_requests`; admin approves role or rejects with comment.
 class AdminPendingRegistrations extends StatelessWidget {
   const AdminPendingRegistrations({Key? key}) : super(key: key);
 

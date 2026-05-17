@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Admin view of all supplier meals/products in Firestore.
 class AdminProductList extends StatelessWidget {
   const AdminProductList({Key? key}) : super(key: key);
 

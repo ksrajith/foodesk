@@ -7,6 +7,8 @@ import '../utils/date_time_utils.dart';
 import '../utils/registration_stats.dart';
 import '../utils/registration_report_pdf.dart';
 
+/// Drill-down registration stats and PDF export (opened from registration history).
+
 /// Optional navigation args when opening from Registration History counts.
 class RegistrationDetailsArgs {
   const RegistrationDetailsArgs({

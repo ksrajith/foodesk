@@ -1,4 +1,5 @@
-/// Domain model for user profile. Maps to Firestore `users` collection.
+/// Domain model for Firestore `users` collection (optional; login still uses maps).
+/// Use [UserProfile.fromMap] when you want typed fields instead of `Map<String, dynamic>`.
 class UserProfile {
   const UserProfile({
     required this.id,

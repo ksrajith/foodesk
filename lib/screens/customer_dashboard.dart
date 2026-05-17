@@ -7,10 +7,11 @@ import '../utils/fcm_utils.dart';
 import '../utils/order_utils.dart';
 import '../utils/pool_utils.dart';
 import '../utils/app_settings.dart';
+import '../utils/screen_helpers.dart';
 import 'place_meal_screen.dart';
 import 'pool_screen.dart';
-// AppData removed: use FirebaseAuth/Firestore for user data
 
+/// Customer home: place orders, pool, order history. Refreshes FCM token on open.
 class CustomerDashboard extends StatefulWidget {
   const CustomerDashboard({Key? key}) : super(key: key);
 
@@ -27,6 +28,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
     Future<void>.delayed(const Duration(seconds: 8), () => refreshFcmTokenAndSave());
   }
 
+  /// Calls Cloud Function `sendTestNotification` (debug / verify push setup).
   Future<void> _sendTestNotification() async {
     final scaffold = ScaffoldMessenger.of(context);
     try {
@@ -75,11 +77,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
           ),
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              // ignore: use_build_context_synchronously
-              Navigator.pushReplacementNamed(context, '/');
-            },
+            onPressed: () => signOutAndGoToLogin(context),
           ),
         ],
       ),

@@ -10,6 +10,7 @@ import 'supplier_add_edit_meal_screen.dart';
 const List<String> _mealTypeFilterOptions = ['Breakfast', 'Lunch', 'Dinner'];
 const List<String> _statusFilterOptions = ['All', 'Available', 'Unavailable'];
 
+/// Supplier's meal list: add, edit, delete products they own.
 class SupplierProductList extends StatefulWidget {
   const SupplierProductList({Key? key}) : super(key: key);
 

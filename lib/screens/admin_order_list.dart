@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/date_time_utils.dart';
 import '../utils/order_utils.dart';
 
+/// Admin list of all orders with status filters.
 class AdminOrderList extends StatelessWidget {
   const AdminOrderList({Key? key}) : super(key: key);
 

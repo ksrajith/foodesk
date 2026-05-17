@@ -6,6 +6,7 @@ import '../utils/order_utils.dart';
 import '../utils/pool_utils.dart';
 import '../utils/admin_report_pdf.dart';
 
+/// Supplier orders for their products: filter, approve/reject, print report.
 class SupplierOrderList extends StatefulWidget {
   const SupplierOrderList({Key? key}) : super(key: key);
 

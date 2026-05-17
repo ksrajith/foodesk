@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/screen_helpers.dart';
 import 'admin_pending_registrations.dart';
+
+/// Admin home: user/order stats, links to admin tools. Logout returns to login.
 
 /// Returns true if [order]'s delivery/order date falls on [date] (year, month, day).
 bool _orderOnDate(Map<String, dynamic> order, DateTime date) {
@@ -34,10 +37,7 @@ class AdminDashboard extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              Navigator.pushReplacementNamed(context, '/');
-            },
+            onPressed: () => signOutAndGoToLogin(context),
           ),
         ],
       ),

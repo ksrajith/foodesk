@@ -1,60 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/login_profile_service.dart';
 import '../utils/fcm_utils.dart';
-// AppData removed. User profile stored in Firestore; no app-level cache.
+import '../utils/password_policy.dart';
+import '../utils/screen_helpers.dart';
 
-/// Password policy: 8–12 characters; at least one uppercase, one lowercase, one digit.
-const int _passwordMinLength = 8;
-const int _passwordMaxLength = 12;
-
-String? _validatePasswordPolicy(String? value) {
-  if (value == null || value.isEmpty) return null; // Let required check handle empty
-  if (value.length < _passwordMinLength) {
-    return 'Password must be at least $_passwordMinLength characters';
-  }
-  if (value.length > _passwordMaxLength) {
-    return 'Password must be at most $_passwordMaxLength characters';
-  }
-  final hasUppercase = value.contains(RegExp(r'[A-Z]'));
-  final hasLowercase = value.contains(RegExp(r'[a-z]'));
-  final hasDigit = value.contains(RegExp(r'[0-9]'));
-  final count = (hasUppercase ? 1 : 0) + (hasLowercase ? 1 : 0) + (hasDigit ? 1 : 0);
-  if (count < 3) {
-    return 'Use uppercase, lowercase and numbers';
-  }
-  return null;
-}
-
-void _showPasswordPolicyDialog(BuildContext context) {
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Row(
-        children: [
-          Icon(Icons.info_outline, color: Colors.teal.shade600),
-          const SizedBox(width: 8),
-          const Text('Password policy'),
-        ],
-      ),
-      content: const Text(
-        '• Length: 8–12 characters\n'
-        '• Use at least three of:\n'
-        '  · Uppercase letters (A–Z)\n'
-        '  · Lowercase letters (a–z)\n'
-        '  · Numbers (0–9)',
-        style: TextStyle(height: 1.5),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('OK'),
-        ),
-      ],
-    ),
-  );
-}
-
+/// Login and registration screen.
+/// - Login: Firebase Auth → load/create Firestore profile → optional password change → home by role.
+/// - Register: create Auth user → pending `registration_requests` doc for admin approval.
 class LoginRegisterScreen extends StatefulWidget {
   const LoginRegisterScreen({Key? key}) : super(key: key);
 
@@ -65,11 +19,12 @@ class LoginRegisterScreen extends StatefulWidget {
 class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
   bool isLogin = true;
   final _formKey = GlobalKey<FormState>();
-  
+  final _loginProfileService = LoginProfileService();
+
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
-  
+
   String selectedRole = 'Customer';
   final List<String> roles = ['Customer', 'Supplier', 'Admin'];
   bool _obscurePassword = true;
@@ -82,6 +37,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
     super.dispose();
   }
 
+  /// Switches between Login and Register form layouts.
   void _toggleMode() {
     setState(() {
       isLogin = !isLogin;
@@ -90,6 +46,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
     });
   }
 
+  /// Login button / Register button — validates form then runs the matching flow.
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
     if (isLogin) {
@@ -99,6 +56,9 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
     }
   }
 
+  /// 1) Sign in with email/password.
+  /// 2) Resolve Firestore profile (see [LoginProfileService]).
+  /// 3) Optional forced password change, FCM token, navigate by role.
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -108,158 +68,124 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
         email: email,
         password: password,
       );
+      final user = creds.user!;
+      final uid = user.uid;
 
-      final uid = creds.user!.uid;
-      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-      final requestDoc = await FirebaseFirestore.instance.collection('registration_requests').doc(uid).get();
-
-      Map<String, dynamic> profile;
-      if (doc.exists) {
-        profile = doc.data()!;
-        final status = (profile['accountStatus'] as String?)?.toLowerCase();
-        if (status == 'deactivated') {
-          await FirebaseAuth.instance.signOut();
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Your account has been deactivated. Contact an administrator.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-          return;
-        }
-      } else {
-        // No users doc: check registration request status (approval workflow)
-        if (requestDoc.exists) {
-          final req = requestDoc.data()!;
-          final status = req['status'] as String? ?? 'pending';
-          if (status == 'pending') {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Your registration is pending admin approval. You will be notified when reviewed.'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-            return;
-          }
-          if (status == 'rejected') {
-            if (!mounted) return;
-            final comment = req['adminComment'] as String? ?? '';
-            showDialog(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('Registration Rejected'),
-                content: Text(
-                  comment.isEmpty
-                      ? 'Your registration request was rejected by an administrator.'
-                      : 'Your registration request was rejected.\n\nAdmin comment: $comment',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('OK'),
-                  ),
-                ],
-              ),
-            );
-            return;
-          }
-          if (status == 'approved') {
-            final approvedRole = req['approvedRole'] as String? ?? 'Customer';
-            final adminComment = req['adminComment'] as String? ?? '';
-            profile = {
-              'id': uid,
-              'name': req['name'] ?? creds.user!.displayName ?? email.split('@').first,
-              'email': req['email'] ?? email,
-              'role': approvedRole,
-              'accountStatus': 'Active',
-              'approvedAt': FieldValue.serverTimestamp(),
-            };
-            await FirebaseFirestore.instance.collection('users').doc(uid).set(profile);
-            if (!mounted) return;
-            await showDialog(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('Registration Approved'),
-                content: Text(
-                  adminComment.isEmpty
-                      ? 'Your registration has been approved. Your role: $approvedRole.'
-                      : 'Your registration has been approved. Your role: $approvedRole.\n\nAdmin comment: $adminComment',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('OK'),
-                  ),
-                ],
-              ),
-            );
-          } else {
-            profile = {
-              'id': uid,
-              'name': creds.user!.displayName ?? email.split('@').first,
-              'email': email,
-              'role': 'Customer',
-              'accountStatus': 'Active',
-            };
-            await FirebaseFirestore.instance.collection('users').doc(uid).set(profile);
-          }
-        } else {
-          profile = {
-            'id': uid,
-            'name': creds.user!.displayName ?? email.split('@').first,
-            'email': email,
-            'role': 'Customer',
-            'accountStatus': 'Active',
-          };
-          await FirebaseFirestore.instance.collection('users').doc(uid).set(profile);
-        }
-      }
-
-      if (!mounted) return;
-      final mustChangePassword = profile['mustChangePassword'] == true;
-      if (mustChangePassword) {
-        await Navigator.pushNamed(context, '/change-password', arguments: true);
-        if (!mounted) return;
-      }
-      await refreshFcmTokenAndSave();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Welcome ${profile['name']}!'),
-          backgroundColor: Colors.green,
-        ),
+      final result = await _loginProfileService.resolveAfterSignIn(
+        uid: uid,
+        email: email,
+        displayName: user.displayName,
       );
 
-      final role = ((profile['role'] ?? 'Customer') as String).trim().toLowerCase();
-      if (role == 'admin') {
-        Navigator.pushReplacementNamed(context, '/admin-dashboard');
-      } else if (role == 'supplier') {
-        Navigator.pushReplacementNamed(context, '/supplier-dashboard');
-      } else {
-        Navigator.pushReplacementNamed(context, '/customer-home');
-      }
+      if (!mounted) return;
+      if (!await _handleLoginProfileResult(result)) return;
+
+      final profile = result.profile!;
+      await _completeLoginSuccess(profile);
     } on FirebaseAuthException catch (e) {
-      final msg = e.code == 'user-not-found'
-          ? 'No user found for that email'
-          : e.code == 'wrong-password'
-              ? 'Wrong password provided'
-              : e.message ?? 'Login failed';
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.red),
-      );
-    } catch (e) {
+      showAppSnackBar(context, message: loginAuthErrorMessage(e), backgroundColor: Colors.red);
+    } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Login error. Please try again.'),
-          backgroundColor: Colors.red,
-        ),
+      showAppSnackBar(
+        context,
+        message: 'Login error. Please try again.',
+        backgroundColor: Colors.red,
       );
     }
   }
 
+  /// Shows messages/dialogs when profile resolution blocks login. Returns false to stop.
+  Future<bool> _handleLoginProfileResult(LoginProfileResult result) async {
+    switch (result.blockReason) {
+      case LoginBlockReason.deactivated:
+        showAppSnackBar(
+          context,
+          message: 'Your account has been deactivated. Contact an administrator.',
+          backgroundColor: Colors.red,
+        );
+        return false;
+      case LoginBlockReason.registrationPending:
+        showAppSnackBar(
+          context,
+          message: 'Your registration is pending admin approval. You will be notified when reviewed.',
+          backgroundColor: Colors.orange,
+        );
+        return false;
+      case LoginBlockReason.registrationRejected:
+        await _showRegistrationRejectedDialog(result.rejectedAdminComment);
+        return false;
+      case null:
+        break;
+    }
+
+    if (result.showApprovedDialog) {
+      await _showRegistrationApprovedDialog(
+        role: result.approvedRole!,
+        adminComment: result.approvedAdminComment,
+      );
+      if (!mounted) return false;
+    }
+
+    return result.canContinue;
+  }
+
+  Future<void> _showRegistrationRejectedDialog(String? comment) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Registration Rejected'),
+        content: Text(
+          (comment == null || comment.isEmpty)
+              ? 'Your registration request was rejected by an administrator.'
+              : 'Your registration request was rejected.\n\nAdmin comment: $comment',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showRegistrationApprovedDialog({
+    required String role,
+    String? adminComment,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Registration Approved'),
+        content: Text(
+          (adminComment == null || adminComment.isEmpty)
+              ? 'Your registration has been approved. Your role: $role.'
+              : 'Your registration has been approved. Your role: $role.\n\nAdmin comment: $adminComment',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+        ],
+      ),
+    );
+  }
+
+  /// After a valid profile: password change (if required), FCM, welcome, home route.
+  Future<void> _completeLoginSuccess(Map<String, dynamic> profile) async {
+    if (profile['mustChangePassword'] == true) {
+      await Navigator.pushNamed(context, '/change-password', arguments: true);
+      if (!mounted) return;
+    }
+
+    await refreshFcmTokenAndSave();
+
+    if (!mounted) return;
+    showAppSnackBar(
+      context,
+      message: 'Welcome ${profile['name']}!',
+      backgroundColor: Colors.green,
+    );
+    navigateToHomeForProfile(context, profile);
+  }
+
+  /// Creates Firebase Auth user + pending registration request for admin review.
   Future<void> _handleRegister() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -270,12 +196,12 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
         email: email,
         password: password,
       );
+      final uid = creds.user!.uid;
 
       await creds.user!.updateDisplayName(name);
 
-      // Create pending registration request — admins will be notified via Firestore (admin screen lists pending)
-      await FirebaseFirestore.instance.collection('registration_requests').doc(creds.user!.uid).set({
-        'uid': creds.user!.uid,
+      await FirebaseFirestore.instance.collection('registration_requests').doc(uid).set({
+        'uid': uid,
         'email': email,
         'name': name,
         'requestedRole': selectedRole,
@@ -284,36 +210,27 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Registration submitted. An admin will review your request. You will be notified when approved or rejected.'),
-          backgroundColor: Colors.green,
-        ),
+      showAppSnackBar(
+        context,
+        message:
+            'Registration submitted. An admin will review your request. You will be notified when approved or rejected.',
+        backgroundColor: Colors.green,
       );
 
-      if (!mounted) return;
       setState(() {
         isLogin = true;
         _formKey.currentState?.reset();
         selectedRole = 'Customer';
       });
     } on FirebaseAuthException catch (e) {
-      final msg = e.code == 'email-already-in-use'
-          ? 'Email already exists'
-          : e.code == 'weak-password'
-              ? 'Password is too weak'
-              : e.message ?? 'Registration failed';
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.red),
-      );
-    } catch (e) {
+      showAppSnackBar(context, message: registerAuthErrorMessage(e), backgroundColor: Colors.red);
+    } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Registration error. Please try again.'),
-          backgroundColor: Colors.red,
-        ),
+      showAppSnackBar(
+        context,
+        message: 'Registration error. Please try again.',
+        backgroundColor: Colors.red,
       );
     }
   }
@@ -355,14 +272,23 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                             children: [
                               Icon(Icons.restaurant, size: 80, color: Colors.teal.shade600),
                               const SizedBox(height: 8),
-                              Text('FOOD DESK', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                              Text(
+                                'FOOD DESK',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.teal.shade800,
+                                ),
+                              ),
                             ],
                           ),
                         ),
                         const SizedBox(height: 12),
-                        Text(isLogin ? 'Welcome Back!' : 'Create Account', style: TextStyle(fontSize: 16, color: Colors.grey.shade600)),
+                        Text(
+                          isLogin ? 'Welcome Back!' : 'Create Account',
+                          style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                        ),
                         const SizedBox(height: 32),
-
                         if (!isLogin) ...[
                           TextFormField(
                             controller: _nameController,
@@ -382,7 +308,6 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                           ),
                           const SizedBox(height: 16),
                         ],
-
                         TextFormField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
@@ -404,7 +329,6 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                           },
                         ),
                         const SizedBox(height: 16),
-
                         TextFormField(
                           controller: _passwordController,
                           obscureText: _obscurePassword,
@@ -417,7 +341,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                                 if (!isLogin)
                                   IconButton(
                                     icon: Icon(Icons.info_outline, size: 22, color: Colors.teal.shade600),
-                                    onPressed: () => _showPasswordPolicyDialog(context),
+                                    onPressed: () => showPasswordPolicyDialog(context),
                                     tooltip: 'Password policy',
                                   ),
                                 IconButton(
@@ -439,13 +363,10 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                               return 'Please enter your password';
                             }
                             if (isLogin) return null;
-                            final policyError = _validatePasswordPolicy(value);
-                            if (policyError != null) return policyError;
-                            return null;
+                            return validateRegistrationPassword(value);
                           },
                         ),
                         const SizedBox(height: 16),
-
                         if (isLogin)
                           Align(
                             alignment: Alignment.centerRight,
@@ -462,7 +383,6 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                             ),
                           ),
                         if (isLogin) const SizedBox(height: 8),
-
                         if (!isLogin) ...[
                           DropdownButtonFormField<String>(
                             value: selectedRole,
@@ -479,7 +399,11 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                                 child: Row(
                                   children: [
                                     Icon(
-                                      role == 'Customer' ? Icons.shopping_cart : role == 'Supplier' ? Icons.store : Icons.admin_panel_settings,
+                                      role == 'Customer'
+                                          ? Icons.shopping_cart
+                                          : role == 'Supplier'
+                                              ? Icons.store
+                                              : Icons.admin_panel_settings,
                                       size: 20,
                                       color: Colors.teal.shade600,
                                     ),
@@ -495,9 +419,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                           ),
                           const SizedBox(height: 24),
                         ],
-
                         if (isLogin) const SizedBox(height: 24),
-
                         SizedBox(
                           width: double.infinity,
                           height: 50,
@@ -510,19 +432,28 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                             ),
                             child: Text(
                               isLogin ? 'Login' : 'Register',
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
                         const SizedBox(height: 16),
-
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(isLogin ? "Don't have an account? " : "Already have an account? ", style: TextStyle(color: Colors.grey.shade700)),
+                            Text(
+                              isLogin ? "Don't have an account? " : "Already have an account? ",
+                              style: TextStyle(color: Colors.grey.shade700),
+                            ),
                             TextButton(
                               onPressed: _toggleMode,
-                              child: Text(isLogin ? 'Register' : 'Login', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade600)),
+                              child: Text(
+                                isLogin ? 'Register' : 'Login',
+                                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade600),
+                              ),
                             ),
                           ],
                         ),

@@ -1,7 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../utils/screen_helpers.dart';
 
+/// Change password (voluntary or forced after admin reset).
+/// Clears `mustChangePassword` on the Firestore user doc when done.
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({Key? key, this.isForced = false}) : super(key: key);
 
@@ -35,6 +38,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     return null;
   }
 
+  /// Updates Auth password and clears forced-reset flags on `users/{uid}`.
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final user = FirebaseAuth.instance.currentUser;
@@ -49,23 +53,17 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password changed successfully.'), backgroundColor: Colors.green),
-      );
+      showAppSnackBar(context, message: 'Password changed successfully.', backgroundColor: Colors.green);
       Navigator.pop(context, true);
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       final msg = e.code == 'requires-recent-login'
           ? 'Please log in again and retry password change.'
           : (e.message ?? 'Failed to change password');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.red),
-      );
+      showAppSnackBar(context, message: msg, backgroundColor: Colors.red);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
-      );
+      showAppSnackBar(context, message: 'Failed: $e', backgroundColor: Colors.red);
     } finally {
       if (mounted) setState(() => _saving = false);
     }

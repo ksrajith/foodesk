@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../utils/screen_helpers.dart';
 
 /// Screen to request a password reset email. User enters email and taps Send;
 /// Firebase sends a reset link to that email.
@@ -21,6 +22,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     super.dispose();
   }
 
+  /// Sends Firebase password-reset email, then returns to login.
   Future<void> _sendResetLink() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
@@ -30,35 +32,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       );
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
+      showAppSnackBar(
+        context,
+        message:
             'Password reset email sent. Check your inbox and follow the link to reset your password.',
-          ),
-          backgroundColor: Colors.green,
-        ),
+        backgroundColor: Colors.green,
       );
       Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      String message = 'Could not send reset email. Try again.';
-      if (e.code == 'user-not-found') {
-        message = 'No account found with this email.';
-      } else if (e.code == 'invalid-email') {
-        message = 'Please enter a valid email address.';
-      } else if (e.message != null && e.message!.isNotEmpty) {
-        message = e.message!;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      showAppSnackBar(
+        context,
+        message: passwordResetAuthErrorMessage(e),
+        backgroundColor: Colors.red,
       );
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
+      showAppSnackBar(context, message: 'Error: $e', backgroundColor: Colors.red);
     }
   }
 

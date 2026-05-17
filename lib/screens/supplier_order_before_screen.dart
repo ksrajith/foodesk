@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Supplier sets per-meal-type order deadline (day before vs same day, hour).
+
 const List<String> kMealTypeKeys = ['Breakfast', 'Lunch', 'Dinner'];
 List<int> get _hours24 => List.generate(24, (i) => i);
 
