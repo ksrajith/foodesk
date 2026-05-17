@@ -67,6 +67,11 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'My profile',
+            onPressed: () => Navigator.pushNamed(context, '/profile'),
+          ),
+          IconButton(
             icon: const Icon(Icons.notifications_active),
             tooltip: 'Test notification',
             onPressed: _sendTestNotification,

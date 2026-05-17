@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../utils/password_policy.dart';
 import '../utils/screen_helpers.dart';
 
 /// Change password (voluntary or forced after admin reset).
@@ -31,16 +32,17 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   String? _validatePassword(String? value) {
     if (value == null || value.isEmpty) return 'Please enter a new password';
-    if (value.length < 8) return 'Password must be at least 8 characters';
-    if (!RegExp(r'[A-Z]').hasMatch(value)) return 'Include at least one uppercase letter';
-    if (!RegExp(r'[a-z]').hasMatch(value)) return 'Include at least one lowercase letter';
-    if (!RegExp(r'[0-9]').hasMatch(value)) return 'Include at least one number';
-    return null;
+    return validateRegistrationPassword(value);
   }
 
   /// Updates Auth password and clears forced-reset flags on `users/{uid}`.
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    final policyError = validateRegistrationPassword(_newPasswordController.text);
+    if (policyError != null) {
+      showAppSnackBar(context, message: policyError, backgroundColor: Colors.orange);
+      return;
+    }
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     setState(() => _saving = true);
@@ -106,7 +108,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         Text(
                           widget.isForced
                               ? 'You are using an admin-reset password. Change it now to continue.'
-                              : 'Enter a strong password with uppercase, lowercase, and number.',
+                              : '8–12 characters; use uppercase, lowercase and numbers.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.grey.shade600),
                         ),
@@ -117,9 +119,21 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                           decoration: InputDecoration(
                             labelText: 'New password',
                             prefixIcon: const Icon(Icons.lock),
-                            suffixIcon: IconButton(
-                              onPressed: () => setState(() => _obscureNew = !_obscureNew),
-                              icon: Icon(_obscureNew ? Icons.visibility_off : Icons.visibility),
+                            helperText: '8–12 characters; use uppercase, lowercase and numbers',
+                            helperMaxLines: 2,
+                            suffixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.info_outline, size: 22, color: Colors.teal.shade600),
+                                  onPressed: () => showPasswordPolicyDialog(context),
+                                  tooltip: 'Password policy',
+                                ),
+                                IconButton(
+                                  onPressed: () => setState(() => _obscureNew = !_obscureNew),
+                                  icon: Icon(_obscureNew ? Icons.visibility_off : Icons.visibility),
+                                ),
+                              ],
                             ),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                           ),

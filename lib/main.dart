@@ -27,6 +27,7 @@ import 'screens/supplier_late_orders_screen.dart';
 import 'screens/customer_dashboard.dart';
 import 'screens/customer_order_history_screen.dart';
 import 'screens/pool_screen.dart';
+import 'screens/profile_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -122,6 +123,7 @@ class MyApp extends StatelessWidget {
           final forced = args is bool ? args : false;
           return ChangePasswordScreen(isForced: forced);
         },
+        '/profile': (context) => const ProfileScreen(),
         '/admin-dashboard': (context) => const AdminDashboard(),
         '/admin-pending-registrations': (context) => const AdminPendingRegistrations(),
         '/admin-registration-history': (context) => const AdminRegistrationHistoryScreen(),

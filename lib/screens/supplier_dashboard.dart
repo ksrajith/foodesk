@@ -32,6 +32,11 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'My profile',
+            onPressed: () => Navigator.pushNamed(context, '/profile'),
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => signOutAndGoToLogin(context),
           ),
